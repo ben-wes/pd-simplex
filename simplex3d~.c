@@ -5,8 +5,7 @@ static t_class *simplex3d_tilde_class;
 
 typedef struct _simplex3d_tilde {
     t_object x_obj;
-    // t_float *x_input;
-    // t_inlet *x_inlet_persistence;
+    t_inlet *x_inlet_persistence;
     int x_octaves;
     int x_p[256];
 } t_simplex3d_tilde;
@@ -188,26 +187,28 @@ static t_int *simplex3d_tilde_perform(t_int *w) {
     t_simplex3d_tilde *x = (t_simplex3d_tilde *)(w[1]);
     t_int n = (t_int)(w[2]);
     t_int nchans = (t_int)(w[3]);
-    t_sample *in = (t_sample *)(w[4]);
-    t_sample *out = (t_sample *)(w[5]);
+    t_sample *in_coord = (t_sample *)(w[4]);
+    t_sample *in_persistence = (t_sample *)(w[5]);
+    t_sample *out = (t_sample *)(w[6]);
     if (nchans == 3) {
         for(i = 0; i < n; i++) {
-            t_float x_coord = in[i];
-            t_float y_coord = in[1*n + i];
-            t_float z_coord = in[2*n + i];
-            t_float result = simplex3d(x, x_coord, y_coord, z_coord);
+            t_float x_coord = in_coord[i];
+            t_float y_coord = in_coord[1*n + i];
+            t_float z_coord = in_coord[2*n + i];
+            t_float persistence = in_persistence[i];
+            t_float result = simplex3d(x, x_coord, y_coord, z_coord) * persistence;
             *out++ = result;
         }
     } else {
         for(i = 0; i < n; i++)
             *out++ = 0;
     }
-    return(w+6);
+    return(w+7);
 }
 
 void simplex3d_tilde_dsp(t_simplex3d_tilde *x, t_signal **sp) {
-    signal_setmultiout(&sp[1], 1);
-    dsp_add(simplex3d_tilde_perform, 5, x, (t_int)sp[0]->s_n, (t_int)sp[0]->s_nchans, sp[0]->s_vec, sp[1]->s_vec);
+    signal_setmultiout(&sp[2], 1);
+    dsp_add(simplex3d_tilde_perform, 6, x, (t_int)sp[0]->s_n, (t_int)sp[0]->s_nchans, sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec);
 }
 
 static void simplex3d_tilde_octaves(t_simplex3d_tilde *x, t_floatarg f){
@@ -219,23 +220,23 @@ static void simplex3d_tilde_octaves(t_simplex3d_tilde *x, t_floatarg f){
 // }
 
 void *simplex3d_tilde_new(t_symbol *s, int ac, t_atom *av) {
-    // double persistence = 0.5;
-    // if(ac)
-    //     persistence = atom_getfloatarg(0, ac, av);
-
+    double persistence = 0.5;
     t_simplex3d_tilde *x = (t_simplex3d_tilde *)pd_new(simplex3d_tilde_class);
+    if (ac)
+        persistence = atom_getfloatarg(0, ac, av);
     initPermutation(x, 0);
-    // x->x_block = x->x_chs = 0;
-    // x->x_input = (t_float *)getbytes(0);
-    // inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
-    // pd_float((t_pd *)x->x_inlet_persistence, persistence);
+    x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal); // persistence
+        pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
     return(x);
 }
 
+void *simplex3d_tilde_free(t_simplex3d_tilde *x){
+    inlet_free(x->x_inlet_persistence);
+    return(void *)x;
+}
+
 void simplex3d_tilde_setup(void) {
-    // simplex3d_tilde_class = class_new(gensym("simplex3d~"), (t_newmethod)simplex3d_tilde_new,
-    //     (t_method)simplex3d_tilde_free, sizeof(t_simplex3d_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
     simplex3d_tilde_class = class_new(gensym("simplex3d~"), (t_newmethod)simplex3d_tilde_new,
         0, sizeof(t_simplex3d_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
     class_addmethod(simplex3d_tilde_class, nullfn, gensym("signal"), 0);
