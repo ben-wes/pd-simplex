@@ -1,5 +1,8 @@
 #include "m_pd.h"
-#include <math.h>
+
+#define max(a,b) ( ((a) > (b)) ? (a) : (b) )
+
+#define PERSISTENCE 0.5
 
 static t_class *simplex3d_tilde_class;
 
@@ -52,17 +55,6 @@ static inline t_float grad(int hash, t_float x, t_float y, t_float z) {
     t_float v = h < 4 ? y : h == 12 || h == 14 ? x : z;
     return ((h & 1) ? -u : u) + ((h & 2) == 0 ? v : -v);
 }
-
-// Gradient vectors for 3D simplex noise
-// static int grad3[][3] = {
-//     {1,1,0}, {-1,1,0}, {1,-1,0}, {-1,-1,0},
-//     {1,0,1}, {-1,0,1}, {1,0,-1}, {-1,0,-1},
-//     {0,1,1}, {0,-1,1}, {0,1,-1}, {0,-1,-1}
-// };
-
-// static inline t_float dot(int g[], t_float x, t_float y, t_float z) {
-//     return g[0] * x + g[1] * y + g[2] * z;
-// }
 
 // 3D simplex noise function
 t_float simplex3d(t_simplex3d_tilde *x, t_float xin, t_float yin, t_float zin) {
@@ -125,30 +117,6 @@ t_float simplex3d(t_simplex3d_tilde *x, t_float xin, t_float yin, t_float zin) {
     int gi3 = hash(x, i + 1 + hash(x, j + 1 + hash(x, k + 1)));
 
     // Calculate the contribution from the four corners
-    // t_float t0 = 0.6 - x0*x0 - y0*y0 - z0*z0;
-    // if (t0 < 0) n0 = 0.0;
-    // else {
-    //     t0 *= t0;
-    //     n0 = t0 * t0 * dot(grad3[gi0], x0, y0, z0);
-    // }
-    // t_float t1 = 0.6 - x1*x1 - y1*y1 - z1*z1;
-    // if (t1 < 0) n1 = 0.0;
-    // else {
-    //     t1 *= t1;
-    //     n1 = t1 * t1 * dot(grad3[gi1], x1, y1, z1);
-    // }
-    // t_float t2 = 0.6 - x2*x2 - y2*y2 - z2*z2;
-    // if (t2 < 0) n2 = 0.0;
-    // else {
-    //     t2 *= t2;
-    //     n2 = t2 * t2 * dot(grad3[gi2], x2, y2, z2);
-    // }
-    // t_float t3 = 0.6 - x3*x3 - y3*y3 - z3*z3;
-    // if (t3 < 0) n3 = 0.0;
-    // else {
-    //     t3 *= t3;
-    //     n3 = t3 * t3 * dot(grad3[gi3], x3, y3, z3);
-    // }
     t_float t0 = 0.6 - x0*x0 - y0*y0 - z0*z0;
     if (t0 < 0) {
         n0 = 0.0;
@@ -212,18 +180,16 @@ void simplex3d_tilde_dsp(t_simplex3d_tilde *x, t_signal **sp) {
 }
 
 static void simplex3d_tilde_octaves(t_simplex3d_tilde *x, t_floatarg f){
-    x->x_octaves = floor(f);
+    x->x_octaves = fastfloor(f);
 }
 
-// void simplex3d_tilde_free(t_simplex3d_tilde *x){
-//     freebytes(x->x_input, x->x_block*x->x_chs * sizeof(*x->x_input));
-// }
-
 void *simplex3d_tilde_new(t_symbol *s, int ac, t_atom *av) {
-    double persistence = 0.5;
     t_simplex3d_tilde *x = (t_simplex3d_tilde *)pd_new(simplex3d_tilde_class);
-    if (ac)
-        persistence = atom_getfloatarg(0, ac, av);
+    float persistence = PERSISTENCE;
+    if (ac == 1)
+        x->x_octaves = max(1, atom_getintarg(0, ac, av));
+    else if (ac >= 2)
+        persistence = atom_getfloatarg(1, ac, av);
     initPermutation(x, 0);
     x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal); // persistence
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
