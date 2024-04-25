@@ -184,13 +184,14 @@ static void simplex3d_tilde_octaves(t_simplex3d_tilde *x, t_floatarg f){
 }
 
 void *simplex3d_tilde_new(t_symbol *s, int ac, t_atom *av) {
+    float persistence;
+
     t_simplex3d_tilde *x = (t_simplex3d_tilde *)pd_new(simplex3d_tilde_class);
-    float persistence = PERSISTENCE;
-    if (ac == 1)
-        x->x_octaves = max(1, atom_getintarg(0, ac, av));
-    else if (ac >= 2)
-        persistence = atom_getfloatarg(1, ac, av);
     initPermutation(x, 0);
+
+    x->x_octaves = (ac >= 1) ? max(1, atom_getintarg(0, ac, av)) : 1;
+    persistence = (ac >= 2) ? atom_getfloatarg(1, ac, av) : PERSISTENCE;
+
     x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal); // persistence
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
