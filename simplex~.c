@@ -149,7 +149,6 @@ int simplex[64][4] = {
 {2,0,1,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,0,1,2},{3,0,2,1},{0,0,0,0},{3,1,2,0},
 {2,1,0,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,1,0,2},{0,0,0,0},{3,2,0,1},{3,2,1,0}};
 
-
 unsigned int lcg_next(unsigned int *seed) {
     const unsigned int a = 1664525;
     const unsigned int c = 1013904223;
@@ -545,13 +544,31 @@ static t_int *simplex_tilde_perform(t_int *w) {
     t_sample *in_coord = (t_sample *)(w[4]);
     t_sample *in_persistence = (t_sample *)(w[5]);
     t_sample *out = (t_sample *)(w[6]);
-    if (nchans == 3) {
+    if (nchans == 2) {
         for(i = 0; i < n; i++) {
             t_float x_coord = in_coord[i];
-            t_float y_coord = in_coord[1*n + i];
+            t_float y_coord = in_coord[n + i];
+            t_float persistence = in_persistence[i];
+            t_float result = Noise2D(x, x_coord, y_coord) * persistence;
+            *out++ = result;
+        }
+    } else if (nchans == 3) {
+        for(i = 0; i < n; i++) {
+            t_float x_coord = in_coord[i];
+            t_float y_coord = in_coord[n + i];
             t_float z_coord = in_coord[2*n + i];
             t_float persistence = in_persistence[i];
             t_float result = Noise3D(x, x_coord, y_coord, z_coord) * persistence;
+            *out++ = result;
+        }
+    } else if (nchans == 4) {
+        for(i = 0; i < n; i++) {
+            t_float x_coord = in_coord[i];
+            t_float y_coord = in_coord[n + i];
+            t_float z_coord = in_coord[2*n + i];
+            t_float w_coord = in_coord[3*n + i];
+            t_float persistence = in_persistence[i];
+            t_float result = Noise4D(x, x_coord, y_coord, z_coord, w_coord) * persistence;
             *out++ = result;
         }
     } else {
@@ -570,16 +587,21 @@ static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
     x->x_octaves = fastfloor(f);
 }
 
+static void simplex_tilde_seed(t_simplex_tilde *x, t_floatarg f){
+    initPermutation(x, fastfloor(f));
+}
+
 void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     float persistence;
 
     t_simplex_tilde *x = (t_simplex_tilde *)pd_new(simplex_tilde_class);
-    initPermutation(x, 0);
     x->x_octaves = (ac >= 1) ? max(1, atom_getintarg(0, ac, av)) : 1;
     persistence = (ac >= 2) ? atom_getfloatarg(1, ac, av) : PERSISTENCE;
     x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal); // persistence
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
+
+    initPermutation(x, (int)0);
     return(x);
 }
 
@@ -590,8 +612,9 @@ void *simplex_tilde_free(t_simplex_tilde *x){
 
 void simplex_tilde_setup(void) {
     simplex_tilde_class = class_new(gensym("simplex~"), (t_newmethod)simplex_tilde_new,
-        0, sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
+        (t_method)simplex_tilde_free, sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
     class_addmethod(simplex_tilde_class, nullfn, gensym("signal"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_octaves, gensym("octaves"), A_FLOAT, 0);
+    class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_FLOAT, 0);
 }
