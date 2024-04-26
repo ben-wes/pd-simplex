@@ -13,6 +13,8 @@ typedef struct _simplex3d_tilde {
     int x_p[256];
 } t_simplex3d_tilde;
 
+// https://github.com/weswigham/simplex/blob/master/c/src/simplex.c
+
 unsigned int lcg_next(unsigned int *seed) {
     const unsigned int a = 1664525;
     const unsigned int c = 1013904223;
