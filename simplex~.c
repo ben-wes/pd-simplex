@@ -25,28 +25,27 @@ typedef struct _simplex_tilde {
 
 // simplex noises code from https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c
 
-t_float  grad1( int hash, t_float x ) {
-    int h = hash & 15;
-    t_float grad = 1.0f + (h & 7);   // Gradient value 1.0, 2.0, ..., 8.0
-    if (h&8) grad = -grad;         // Set a random sign for the gradient
-    return ( grad * x );           // Multiply the gradient with the distance
+static const int grad[] = {1,2,3,4,5,6,7,8,-1,-2,-3,-4,-5,-6,-7,-8};
+
+static inline t_float grad1( int hash, t_float x ) { // FUXME: check optimizations?
+    return grad[hash & 15] * x;
 }
 
-t_float  grad2( int hash, t_float x, t_float y ) {
+static inline t_float grad2( int hash, t_float x, t_float y ) {
     int h = hash & 7;      // Convert low 3 bits of hash code
     t_float u = h<4 ? x : y;  // into 8 simple gradient directions,
     t_float v = h<4 ? y : x;  // and compute the dot product with (x,y).
     return ((h&1)? -u : u) + ((h&2)? -2.0f*v : 2.0f*v);
 }
 
-float  grad3( int hash, t_float x, t_float y , t_float z ) {
+static inline float grad3( int hash, t_float x, t_float y , t_float z ) {
     int h = hash & 15;     // Convert low 4 bits of hash code into 12 simple
     t_float u = h<8 ? x : y; // gradient directions, and compute dot product.
     t_float v = h<4 ? y : h==12||h==14 ? x : z; // Fix repeats at h = 12 to 15
     return ((h&1)? -u : u) + ((h&2)? -v : v);
 }
 
-float  grad4( int hash, t_float x, t_float y, t_float z, t_float t ) {
+static inline float grad4( int hash, t_float x, t_float y, t_float z, t_float t ) {
     int h = hash & 31;      // Convert low 5 bits of hash code into 32 simple
     t_float u = h<24 ? x : y; // gradient directions, and compute dot product.
     t_float v = h<16 ? y : z;
@@ -66,7 +65,7 @@ static unsigned char simplex[64][4] = {
 {2,1,0,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,1,0,2},{0,0,0,0},{3,2,0,1},{3,2,1,0}};
 
 
-unsigned int lcg_next(unsigned int *seed) {
+static inline unsigned int lcg_next(unsigned int *seed) {
     const unsigned int a = 1664525;
     const unsigned int c = 1013904223;
     *seed = (a * (*seed) + c); // Modulo 2^32 is implicit due to unsigned int overflow
@@ -460,21 +459,20 @@ void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
 
     t_simplex_tilde *x = (t_simplex_tilde *)pd_new(simplex_tilde_class);
     x->x_normalize = 0;
-    // if (av->a_type == A_SYMBOL) {
-    //     if (atom_getsymbol(av) == gensym("-n"))
-    //         x->x_normalize = 1;
-    //     else
-    //         pd_error(x, "[simplex~]: invalid argument");
-    //     ac--, av++;
-    // }
-    x->x_octaves = (ac >= 1) ? max(1, atom_getintarg(0, ac, av)) : 1;
-    persistence = (ac >= 2) ? atom_getfloatarg(1, ac, av) : PERSISTENCE;
-
-    x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal); // persistence
+    if (ac && av->a_type == A_SYMBOL) {
+        if (atom_getsymbol(av) == gensym("-n"))
+            x->x_normalize = 1;
+        else
+            pd_error(x, "[simplex~]: invalid argument");
+        ac--, av++;
+    }
+    x->x_octaves = ac-- ? atom_getint(av++) : 1;
+    persistence = ac ? atom_getfloat(av) : PERSISTENCE;
+    x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
 
-    initPermutation(x, (int)0);
+    initPermutation(x, 0);
     return(x);
 }
 
