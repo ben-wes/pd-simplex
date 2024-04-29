@@ -4,14 +4,21 @@
 #define max(a,b) ( ((a) > (b)) ? (a) : (b) )
 #define fastfloor(x) ( ((int)(x)<=(x)) ? ((int)x) : (((int)x)-1) )
 
-#define PERSISTENCE 0.5
+#define PERSISTENCE 0.5f
+#define SEED 0
 
-#define F2 0.36602540378 // 0.5*(sqrt(3.0)-1.0);
-#define G2 0.2113248654  // (3.0-sqrt(3.0))/6.0;
-#define F3 0.33333333333 // 1.0/3.0;
-#define G3 0.16666666666 // 1.0/6.0
-#define F4 0.30901699437 // (sqrt(5.0)-1.0)/4.0;
-#define G4 0.13819660112 // (5.0-sqrt(5.0))/20.0;
+#define F2   0.36602540378f // 0.5*(sqrt(3.0)-1.0);
+#define G2   0.2113248654f  // (3.0-sqrt(3.0))/6.0;
+#define G2_2 0.42264973081f // (3.0-sqrt(3.0))/3.0;
+#define F3   0.33333333333f // 1.0/3.0;
+#define G3   0.16666666666f // 1.0/6.0
+#define G3_2 0.33333333333f // 1.0/3.0
+#define G3_3 0.5f           // 1.0/2.0
+#define F4   0.30901699437f // (sqrt(5.0)-1.0)/4.0;
+#define G4   0.13819660112f // (5.0-sqrt(5.0))/20.0;
+#define G4_2 0.27639320225f // (5.0-sqrt(5.0))/10.0;
+#define G4_3 0.41458980337f // (5.0-sqrt(5.0))/20.0*3.0;
+#define G4_4 0.5527864045f  // (5.0-sqrt(5.0))/5.0;
 
 static t_class *simplex_tilde_class;
 
@@ -25,9 +32,9 @@ typedef struct _simplex_tilde {
 
 // simplex noises code from https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c
 
-static const int grad[] = {1,2,3,4,5,6,7,8,-1,-2,-3,-4,-5,-6,-7,-8};
+static const signed char grad[] = {1,2,3,4,5,6,7,8,-1,-2,-3,-4,-5,-6,-7,-8};
 
-static inline t_float grad1( int hash, t_float x ) { // FUXME: check optimizations?
+static inline t_float grad1( int hash, t_float x ) {
     return grad[hash & 15] * x;
 }
 
@@ -38,14 +45,14 @@ static inline t_float grad2( int hash, t_float x, t_float y ) {
     return ((h&1)? -u : u) + ((h&2)? -2.0f*v : 2.0f*v);
 }
 
-static inline float grad3( int hash, t_float x, t_float y , t_float z ) {
+static inline t_float grad3( int hash, t_float x, t_float y , t_float z ) {
     int h = hash & 15;     // Convert low 4 bits of hash code into 12 simple
     t_float u = h<8 ? x : y; // gradient directions, and compute dot product.
     t_float v = h<4 ? y : h==12||h==14 ? x : z; // Fix repeats at h = 12 to 15
     return ((h&1)? -u : u) + ((h&2)? -v : v);
 }
 
-static inline float grad4( int hash, t_float x, t_float y, t_float z, t_float t ) {
+static inline t_float grad4( int hash, t_float x, t_float y, t_float z, t_float t ) {
     int h = hash & 31;      // Convert low 5 bits of hash code into 32 simple
     t_float u = h<24 ? x : y; // gradient directions, and compute dot product.
     t_float v = h<16 ? y : z;
@@ -54,7 +61,7 @@ static inline float grad4( int hash, t_float x, t_float y, t_float z, t_float t 
 }
 
 // A lookup table to traverse the simplex around a given point in 4D.
-static unsigned char simplex[64][4] = {
+static const unsigned char simplex4[64][4] = {
 {0,1,2,3},{0,1,3,2},{0,0,0,0},{0,2,3,1},{0,0,0,0},{0,0,0,0},{0,0,0,0},{1,2,3,0},
 {0,2,1,3},{0,0,0,0},{0,3,1,2},{0,3,2,1},{0,0,0,0},{0,0,0,0},{0,0,0,0},{1,3,2,0},
 {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
@@ -64,6 +71,17 @@ static unsigned char simplex[64][4] = {
 {2,0,1,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,0,1,2},{3,0,2,1},{0,0,0,0},{3,1,2,0},
 {2,1,0,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,1,0,2},{0,0,0,0},{3,2,0,1},{3,2,1,0}};
 
+static const unsigned char simplex3[8][6] = {
+    // The entries correspond to (i1, j1, k1, i2, j2, k2) for each condition
+    {0, 0, 1, 0, 1, 1}, // ZYX 0
+    {0, 0, 0, 0, 0, 0},
+    {0, 1, 0, 0, 1, 1}, // YZX 2:   2
+    {0, 1, 0, 1, 1, 0}, // YXZ 3:   2 1
+    {0, 0, 1, 1, 0, 1}, // ZXY 4: 4
+    {1, 0, 0, 1, 0, 1}, // XZY 5: 4   1
+    {0, 0, 0, 0, 0, 0},
+    {1, 0, 0, 1, 1, 0}  // XYZ 7: 4 2 1
+};
 
 static inline unsigned int lcg_next(unsigned int *seed) {
     const unsigned int a = 1664525;
@@ -130,14 +148,16 @@ t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in) {
     t_float x0 = x_in-X0; // The x,y distances from the cell origin
     t_float y0 = y_in-Y0;
 
-    int i1, j1; // Offsets for second (middle) corner of simplex in (i,j) coords
-    if(x0>y0) {i1=1; j1=0;} // lower triangle, XY order: (0,0)->(1,0)->(1,1)
-    else {i1=0; j1=1;}      // upper triangle, YX order: (0,0)->(0,1)->(1,1)
+    // Offsets for second (middle) corner of simplex in (i,j) coords
+    int i1 = x0>y0;
+    int j1 = !i1;
+    // lower triangle, XY order: (0,0)->(1,0)->(1,1)
+    // upper triangle, YX order: (0,0)->(0,1)->(1,1)
 
     t_float x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords
     t_float y1 = y0 - j1 + G2;
-    t_float x2 = x0 - 1.0f + 2.0f * G2; // Offsets for last corner in (x,y) unskewed coords
-    t_float y2 = y0 - 1.0f + 2.0f * G2;
+    t_float x2 = x0 - 1.0f + G2_2; // Offsets for last corner in (x,y) unskewed coords
+    t_float y2 = y0 - 1.0f + G2_2;
 
     // Wrap the integer indices at 256, to avoid indexing x->x_perm[] out of bounds
     int ii = i & 0xff;
@@ -145,30 +165,24 @@ t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in) {
 
     // Calculate the contribution from the three corners
     t_float t0 = 0.5f - x0*x0-y0*y0;
-    if(t0 < 0.0f) n0 = 0.0f;
-    else {
-        t0 *= t0;
-        n0 = t0 * t0 * grad2(x->x_perm[ii+x->x_perm[jj]], x0, y0); 
-    }
+    t0 = max(t0, 0.0f);
+    t0 *= t0;
+    n0 = t0 * t0 * grad2(x->x_perm[ii+x->x_perm[jj]], x0, y0); 
 
     t_float t1 = 0.5f - x1*x1-y1*y1;
-    if(t1 < 0.0f) n1 = 0.0f;
-    else {
-        t1 *= t1;
-        n1 = t1 * t1 * grad2(x->x_perm[ii+i1+x->x_perm[jj+j1]], x1, y1);
-    }
+    t1 = max(t1, 0.0f);
+    t1 *= t1;
+    n1 = t1 * t1 * grad2(x->x_perm[ii+i1+x->x_perm[jj+j1]], x1, y1);
 
     t_float t2 = 0.5f - x2*x2-y2*y2;
-    if(t2 < 0.0f) n2 = 0.0f;
-    else {
-        t2 *= t2;
-        n2 = t2 * t2 * grad2(x->x_perm[ii+1+x->x_perm[jj+1]], x2, y2);
-    }
+    t2 = max(t2, 0.0f);
+    t2 *= t2;
+    n2 = t2 * t2 * grad2(x->x_perm[ii+1+x->x_perm[jj+1]], x2, y2);
 
     // Add contributions from each corner to get the final noise value.
     // The result is scaled to return values in the interval [-1,1].
     return 40.0f * (n0 + n1 + n2); // TODO: The scale factor is preliminary!
-  }
+}
 
 // 3D simplex noise
 t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in) {
@@ -193,36 +207,24 @@ t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in) {
 
     // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
     // Determine which simplex we are in.
-    int i1, j1, k1; // Offsets for second corner of simplex in (i,j,k) coords
-    int i2, j2, k2; // Offsets for third corner of simplex in (i,j,k) coords
+    int c = (x0 >= y0) * 4 + (y0 >= z0) * 2 + (x0 >= z0);
 
-/* This code would benefit from a backport from the GLSL version! */
-    if(x0>=y0) {
-        if(y0>=z0)
-        { i1=1; j1=0; k1=0; i2=1; j2=1; k2=0; } // X Y Z order
-        else if(x0>=z0) { i1=1; j1=0; k1=0; i2=1; j2=0; k2=1; } // X Z Y order
-        else { i1=0; j1=0; k1=1; i2=1; j2=0; k2=1; } // Z X Y order
-    }
-    else { // x0<y0
-        if(y0<z0) { i1=0; j1=0; k1=1; i2=0; j2=1; k2=1; } // Z Y X order
-        else if(x0<z0) { i1=0; j1=1; k1=0; i2=0; j2=1; k2=1; } // Y Z X order
-        else { i1=0; j1=1; k1=0; i2=1; j2=1; k2=0; } // Y X Z order
-    }
-
-    // A step of (1,0,0) in (i,j,k) means a step of (1-c,-c,-c) in (x,y,z),
-    // a step of (0,1,0) in (i,j,k) means a step of (-c,1-c,-c) in (x,y,z), and
-    // a step of (0,0,1) in (i,j,k) means a step of (-c,-c,1-c) in (x,y,z), where
-    // c = 1/6.
+    int i1 = simplex3[c][0];
+    int j1 = simplex3[c][1];
+    int k1 = simplex3[c][2];
+    int i2 = simplex3[c][3];
+    int j2 = simplex3[c][4];
+    int k2 = simplex3[c][5];
 
     t_float x1 = x0 - i1 + G3; // Offsets for second corner in (x,y,z) coords
     t_float y1 = y0 - j1 + G3;
     t_float z1 = z0 - k1 + G3;
-    t_float x2 = x0 - i2 + 2.0f*G3; // Offsets for third corner in (x,y,z) coords
-    t_float y2 = y0 - j2 + 2.0f*G3;
-    t_float z2 = z0 - k2 + 2.0f*G3;
-    t_float x3 = x0 - 1.0f + 3.0f*G3; // Offsets for last corner in (x,y,z) coords
-    t_float y3 = y0 - 1.0f + 3.0f*G3;
-    t_float z3 = z0 - 1.0f + 3.0f*G3;
+    t_float x2 = x0 - i2 + G3_2; // Offsets for third corner in (x,y,z) coords
+    t_float y2 = y0 - j2 + G3_2;
+    t_float z2 = z0 - k2 + G3_2;
+    t_float x3 = x0 - 1.0f + G3_3; // Offsets for last corner in (x,y,z) coords
+    t_float y3 = y0 - 1.0f + G3_3;
+    t_float z3 = z0 - 1.0f + G3_3;
 
     // Wrap the integer indices at 256, to avoid indexing x->x_perm[] out of bounds
     int ii = i & 0xff;
@@ -231,37 +233,29 @@ t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in) {
 
     // Calculate the contribution from the four corners
     t_float t0 = 0.5f - x0*x0 - y0*y0 - z0*z0;
-    if(t0 < 0.0f) n0 = 0.0f;
-    else {
-        t0 *= t0;
-        n0 = t0 * t0 * grad3(x->x_perm[ii+x->x_perm[jj+x->x_perm[kk]]], x0, y0, z0);
-    }
+    t0 = max(t0, 0.0f);
+    t0 *= t0;
+    n0 = t0 * t0 * grad3(x->x_perm[ii+x->x_perm[jj+x->x_perm[kk]]], x0, y0, z0);
 
     t_float t1 = 0.5f - x1*x1 - y1*y1 - z1*z1;
-    if(t1 < 0.0f) n1 = 0.0f;
-    else {
-        t1 *= t1;
-        n1 = t1 * t1 * grad3(x->x_perm[ii+i1+x->x_perm[jj+j1+x->x_perm[kk+k1]]], x1, y1, z1);
-    }
+    t1 = max(t1, 0.0f);
+    t1 *= t1;
+    n1 = t1 * t1 * grad3(x->x_perm[ii+i1+x->x_perm[jj+j1+x->x_perm[kk+k1]]], x1, y1, z1);
 
     t_float t2 = 0.5f - x2*x2 - y2*y2 - z2*z2;
-    if(t2 < 0.0f) n2 = 0.0f;
-    else {
-        t2 *= t2;
-        n2 = t2 * t2 * grad3(x->x_perm[ii+i2+x->x_perm[jj+j2+x->x_perm[kk+k2]]], x2, y2, z2);
-    }
+    t2 = max(t2, 0.0f);
+    t2 *= t2;
+    n2 = t2 * t2 * grad3(x->x_perm[ii+i2+x->x_perm[jj+j2+x->x_perm[kk+k2]]], x2, y2, z2);
 
     t_float t3 = 0.5f - x3*x3 - y3*y3 - z3*z3;
-    if(t3<0.0f) n3 = 0.0f;
-    else {
-        t3 *= t3;
-        n3 = t3 * t3 * grad3(x->x_perm[ii+1+x->x_perm[jj+1+x->x_perm[kk+1]]], x3, y3, z3);
-    }
+    t3 = max(t3, 0.0f);
+    t3 *= t3;
+    n3 = t3 * t3 * grad3(x->x_perm[ii+1+x->x_perm[jj+1+x->x_perm[kk+1]]], x3, y3, z3);
 
     // Add contributions from each corner to get the final noise value.
     // The result is scaled to stay just inside [-1,1]
     return 72.0f * (n0 + n1 + n2 + n3);
-  }
+}
 
 
 // 4D simplex noise
@@ -294,7 +288,7 @@ t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_
     // To find out which of the 24 possible simplices we're in, we need to
     // determine the magnitude ordering of x0, y0, z0 and w0.
     // The method below is a good way of finding the ordering of x,y,z,w and
-    // then find the correct traversal order for the simplex were in.
+    // then find the correct traversal order for the simplex we're in.
     // First, six pair-wise comparisons are performed between each possible pair
     // of the four coordinates, and the results are used to add up binary bits
     // for an integer index.
@@ -310,43 +304,43 @@ t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_
     int i2, j2, k2, l2; // The integer offsets for the third simplex corner
     int i3, j3, k3, l3; // The integer offsets for the fourth simplex corner
 
-    // simplex[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
+    // simplex4[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
     // Many values of c will never occur, since e.g. x>y>z>w makes x<z, y<w and x<w
     // impossible. Only the 24 indices which have non-zero entries make any sense.
     // We use a thresholding to set the coordinates in turn from the largest magnitude.
     // The number 3 in the "simplex" array is at the position of the largest coordinate.
-    i1 = simplex[c][0]>=3 ? 1 : 0;
-    j1 = simplex[c][1]>=3 ? 1 : 0;
-    k1 = simplex[c][2]>=3 ? 1 : 0;
-    l1 = simplex[c][3]>=3 ? 1 : 0;
+    i1 = simplex4[c][0]>=3 ? 1 : 0;
+    j1 = simplex4[c][1]>=3 ? 1 : 0;
+    k1 = simplex4[c][2]>=3 ? 1 : 0;
+    l1 = simplex4[c][3]>=3 ? 1 : 0;
     // The number 2 in the "simplex" array is at the second largest coordinate.
-    i2 = simplex[c][0]>=2 ? 1 : 0;
-    j2 = simplex[c][1]>=2 ? 1 : 0;
-    k2 = simplex[c][2]>=2 ? 1 : 0;
-    l2 = simplex[c][3]>=2 ? 1 : 0;
+    i2 = simplex4[c][0]>=2 ? 1 : 0;
+    j2 = simplex4[c][1]>=2 ? 1 : 0;
+    k2 = simplex4[c][2]>=2 ? 1 : 0;
+    l2 = simplex4[c][3]>=2 ? 1 : 0;
     // The number 1 in the "simplex" array is at the second smallest coordinate.
-    i3 = simplex[c][0]>=1 ? 1 : 0;
-    j3 = simplex[c][1]>=1 ? 1 : 0;
-    k3 = simplex[c][2]>=1 ? 1 : 0;
-    l3 = simplex[c][3]>=1 ? 1 : 0;
+    i3 = simplex4[c][0]>=1 ? 1 : 0;
+    j3 = simplex4[c][1]>=1 ? 1 : 0;
+    k3 = simplex4[c][2]>=1 ? 1 : 0;
+    l3 = simplex4[c][3]>=1 ? 1 : 0;
     // The fifth corner has all coordinate offsets = 1, so no need to look that up.
 
     t_float x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords
     t_float y1 = y0 - j1 + G4;
     t_float z1 = z0 - k1 + G4;
     t_float w1 = w0 - l1 + G4;
-    t_float x2 = x0 - i2 + 2.0f*G4; // Offsets for third corner in (x,y,z,w) coords
-    t_float y2 = y0 - j2 + 2.0f*G4;
-    t_float z2 = z0 - k2 + 2.0f*G4;
-    t_float w2 = w0 - l2 + 2.0f*G4;
-    t_float x3 = x0 - i3 + 3.0f*G4; // Offsets for fourth corner in (x,y,z,w) coords
-    t_float y3 = y0 - j3 + 3.0f*G4;
-    t_float z3 = z0 - k3 + 3.0f*G4;
-    t_float w3 = w0 - l3 + 3.0f*G4;
-    t_float x4 = x0 - 1.0f + 4.0f*G4; // Offsets for last corner in (x,y,z,w) coords
-    t_float y4 = y0 - 1.0f + 4.0f*G4;
-    t_float z4 = z0 - 1.0f + 4.0f*G4;
-    t_float w4 = w0 - 1.0f + 4.0f*G4;
+    t_float x2 = x0 - i2 + G4_2; // Offsets for third corner in (x,y,z,w) coords
+    t_float y2 = y0 - j2 + G4_2;
+    t_float z2 = z0 - k2 + G4_2;
+    t_float w2 = w0 - l2 + G4_2;
+    t_float x3 = x0 - i3 + G4_3; // Offsets for fourth corner in (x,y,z,w) coords
+    t_float y3 = y0 - j3 + G4_3;
+    t_float z3 = z0 - k3 + G4_3;
+    t_float w3 = w0 - l3 + G4_3;
+    t_float x4 = x0 - 1.0f + G4_4; // Offsets for last corner in (x,y,z,w) coords
+    t_float y4 = y0 - 1.0f + G4_4;
+    t_float z4 = z0 - 1.0f + G4_4;
+    t_float w4 = w0 - 1.0f + G4_4;
 
     // Wrap the integer indices at 256, to avoid indexing x->x_perm[] out of bounds
     int ii = i & 0xff;
@@ -356,39 +350,29 @@ t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_
 
     // Calculate the contribution from the five corners
     t_float t0 = 0.5f - x0*x0 - y0*y0 - z0*z0 - w0*w0;
-    if(t0 < 0.0f) n0 = 0.0f;
-    else {
-        t0 *= t0;
-        n0 = t0 * t0 * grad4(x->x_perm[ii+x->x_perm[jj+x->x_perm[kk+x->x_perm[ll]]]], x0, y0, z0, w0);
-    }
+    t0 = max(t0, 0.0f);
+    t0 *= t0;
+    n0 = t0 * t0 * grad4(x->x_perm[ii+x->x_perm[jj+x->x_perm[kk+x->x_perm[ll]]]], x0, y0, z0, w0);
 
     t_float t1 = 0.5f - x1*x1 - y1*y1 - z1*z1 - w1*w1;
-    if(t1 < 0.0f) n1 = 0.0f;
-    else {
-        t1 *= t1;
-        n1 = t1 * t1 * grad4(x->x_perm[ii+i1+x->x_perm[jj+j1+x->x_perm[kk+k1+x->x_perm[ll+l1]]]], x1, y1, z1, w1);
-    }
+    t1 = max(t1, 0.0f);
+    t1 *= t1;
+    n1 = t1 * t1 * grad4(x->x_perm[ii+i1+x->x_perm[jj+j1+x->x_perm[kk+k1+x->x_perm[ll+l1]]]], x1, y1, z1, w1);
 
     t_float t2 = 0.5f - x2*x2 - y2*y2 - z2*z2 - w2*w2;
-    if(t2 < 0.0f) n2 = 0.0f;
-    else {
-        t2 *= t2;
-        n2 = t2 * t2 * grad4(x->x_perm[ii+i2+x->x_perm[jj+j2+x->x_perm[kk+k2+x->x_perm[ll+l2]]]], x2, y2, z2, w2);
-    }
+    t2 = max(t2, 0.0f);
+    t2 *= t2;
+    n2 = t2 * t2 * grad4(x->x_perm[ii+i2+x->x_perm[jj+j2+x->x_perm[kk+k2+x->x_perm[ll+l2]]]], x2, y2, z2, w2);
 
     t_float t3 = 0.5f - x3*x3 - y3*y3 - z3*z3 - w3*w3;
-    if(t3 < 0.0f) n3 = 0.0f;
-    else {
-        t3 *= t3;
-        n3 = t3 * t3 * grad4(x->x_perm[ii+i3+x->x_perm[jj+j3+x->x_perm[kk+k3+x->x_perm[ll+l3]]]], x3, y3, z3, w3);
-    }
+    t3 = max(t3, 0.0f);
+    t3 *= t3;
+    n3 = t3 * t3 * grad4(x->x_perm[ii+i3+x->x_perm[jj+j3+x->x_perm[kk+k3+x->x_perm[ll+l3]]]], x3, y3, z3, w3);
 
     t_float t4 = 0.5f - x4*x4 - y4*y4 - z4*z4 - w4*w4;
-    if(t4 < 0.0f) n4 = 0.0f;
-    else {
-        t4 *= t4;
-        n4 = t4 * t4 * grad4(x->x_perm[ii+1+x->x_perm[jj+1+x->x_perm[kk+1+x->x_perm[ll+1]]]], x4, y4, z4, w4);
-    }
+    t4 = max(t4, 0.0f);
+    t4 *= t4;
+    n4 = t4 * t4 * grad4(x->x_perm[ii+1+x->x_perm[jj+1+x->x_perm[kk+1+x->x_perm[ll+1]]]], x4, y4, z4, w4);
 
     // Sum up and scale the result to cover the range [-1,1]
     return 62.0f * (n0 + n1 + n2 + n3 + n4);
@@ -472,7 +456,7 @@ void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
 
-    initPermutation(x, 0);
+    initPermutation(x, SEED);
     return(x);
 }
 

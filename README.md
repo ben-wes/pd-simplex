@@ -1,12 +1,12 @@
 # simplex~
 Pure Data (Pd) external for signal rate simplex noise with 1d, 2d, 3d and 4d multichannel input
 
-The initial code was an experiment generated via chatgpt. after some research, it was pretty obviously a quite precise copy of https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp though.
+The initial code was an experiment generated via ChatGPT4. The fascinating part of this was that with a few feedback loops, it managed to create a working Pd external. After some research, the noise part of the external turned out to be a pretty exact copy of https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp though.
 
-The current version is based on https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c
+The current version is based on https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c with minor changes.
 
 ## Installation
-Compilation requires 
+Compilation requires https://github.com/pure-data/pd-lib-builder/, which is included as a submodule here.
 ~~~
 git clone --recurse-submodules https://github.com/ben-wes/simplex.git
 cd simplex
@@ -14,15 +14,29 @@ make install
 ~~~
 
 ## Usage
-* the left inlet expects a multichannel signal with up to 4 dimensions for the noise sampling position.
-* the right inlet can be used to control the persistence value with a signal
+* the left inlet expects a multichannel signal with up to 4 dimensions for the noise sampling position. The noise algorithm (and therefore its performance) is selected according to the number of channels.
+* the right inlet can be used to control the persistence value with a signal (or float inputs).
+* the output is the sampled noise in signal rate.
 
-### Creation args
-* optional `-n` flag at the beginning activates normalization of the octaves' sum to keep values in the `[-1..1]` range
+#### Creation args
+* optional `-n` flag at the beginning activates normalization of the octaves' sum to keep values in the [-1..1] range
 * first numerical argument sets the number of octaves (defaults to 1)
-* second numerical argument sets the persistence (while right inlet is not connected)
+* second numerical argument sets initial persistence (defaults to 0.5) 
 
-### Messages
+#### Messages
 * `[seed <int>(` generates different (deterministic) permutation tables for the simplex function
 * `[normalize 0/1(` (de)activates normalization
 * `[octaves <int>(` dynamically changes the number of octaves
+
+## Additional information
+#### Octaves
+In case of more than 1 octave, downscaled versions of the noise space are added to the value of the first octave. This downscaling is applied by multiplying the coordinate with `2^(octave-1)` - for example:
+* coordinate (-1, 3) samples from (-2, 6) for the 2nd octave since `2^(2-1) = 2`
+* coordinate (-1, 3) samples from (-4, 12) for the 3rd octave since `2^(3-1) = 4`
+
+#### Persistence
+The persistence value determines the influence of each successive octave on the final output. It is a multiplier applied to each octave’s amplitude. Lower persistence values cause the amplitudes to decrease rapidly with each octave, leading to a smoother noise pattern. Conversely, higher persistence values maintain stronger amplitudes in higher octaves, resulting in more detailed and rougher patterns - for example:
+* for a persistence of 0.5, the octave's amplitudes will be `1, 0.5, 0.25, 0.125, 0.0625, ...`
+* for a persistence of 0.9, the octave's amplitudes will be `1, 0.9, 0.81, 0.729, 0.6561, ...`
+
+If normalization is activated (via message or creation argument), the sum of all octaves' amplitude gets normalized to 1.
