@@ -35,7 +35,7 @@ In case of more than 1 octave, downscaled versions of the noise space are added 
 * coordinate (-1, 3) samples from (-4, 12) for the 3rd octave since `2^(3-1) = 4`
 
 #### Persistence
-The persistence value determines the influence of each successive octave on the final output. It is a multiplier applied to each octave’s amplitude. Lower persistence values cause the amplitudes to decrease rapidly with each octave, leading to a smoother noise pattern. Conversely, higher persistence values maintain stronger amplitudes in higher octaves, resulting in more detailed and rougher patterns - for example:
+The persistence value determines the influence of successive octave on the final output. It is a multiplier applied to each octave’s amplitude. Lower persistence values cause the amplitudes to decrease rapidly with each octave, leading to a smoother noise pattern. Conversely, higher persistence values maintain stronger amplitudes in higher octaves, resulting in more detailed and rougher patterns - for example:
 * for a persistence of 0.5, the octave's amplitudes will be `1, 0.5, 0.25, 0.125, 0.0625, ...`
 * for a persistence of 0.9, the octave's amplitudes will be `1, 0.9, 0.81, 0.729, 0.6561, ...`
 
