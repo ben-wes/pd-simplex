@@ -88,8 +88,7 @@ static const unsigned char simplex3[8][6] = {
     {1,0,0,1,1,0}  // XYZ 7: 4 2 1
 };
 
-void shuffle(int *array, int n, unsigned int *seed) {
-    srand(*seed);
+void shuffle(int *array, int n) {
     for (int i = n - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         int temp = array[i];
@@ -98,12 +97,12 @@ void shuffle(int *array, int n, unsigned int *seed) {
     }
 }
 
-void initPermutation(t_simplex_tilde *x, unsigned int seed) {
+void initPermutation(t_simplex_tilde *x) {
     int basePermutation[256];
     for (int i = 0; i < 256; i++) {
         basePermutation[i] = i;
     }
-    shuffle(basePermutation, 256, &seed);
+    shuffle(basePermutation, 256);
     for (int i = 0; i < 256; i++) {
         x->x_perm[i] = basePermutation[i];
         x->x_perm[i+256] = basePermutation[i];
@@ -432,14 +431,24 @@ static void simplex_tilde_normalize(t_simplex_tilde *x, t_floatarg f){
     x->x_normalize = fastfloor(f);
 }
 
-static void simplex_tilde_seed(t_simplex_tilde *x, t_floatarg f){
-    initPermutation(x, fastfloor(f));
+static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    unsigned int seed = (ac) ? atom_getfloat(av) : (unsigned int)ts.tv_nsec;
+    post("Seed used: %u", seed);
+    srand(seed);
+    initPermutation(x);
+    (void)s;
 }
 
-void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
+static void simplex_tilde_free(t_simplex_tilde *x){
+    inlet_free(x->x_inlet_persistence);
+}
+
+static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
+    t_simplex_tilde *x = (t_simplex_tilde *)pd_new(simplex_tilde_class);
     t_float persistence;
 
-    t_simplex_tilde *x = (t_simplex_tilde *)pd_new(simplex_tilde_class);
     x->x_normalize = 0;
     if (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
@@ -454,21 +463,23 @@ void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
 
-    initPermutation(x, time(NULL));
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    srand((unsigned int)ts.tv_nsec);
+    initPermutation(x);
+    (void)s;
     return x;
 }
 
-void *simplex_tilde_free(t_simplex_tilde *x){
-    inlet_free(x->x_inlet_persistence);
-    return (void *)x;
-}
-
 void simplex_tilde_setup(void) {
-    simplex_tilde_class = class_new(gensym("simplex~"), (t_newmethod)simplex_tilde_new,
-        (t_method)simplex_tilde_free, sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
+    simplex_tilde_class = class_new(
+        gensym("simplex~"),
+        (t_newmethod)simplex_tilde_new,
+        (t_method)simplex_tilde_free,
+        sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
     class_addmethod(simplex_tilde_class, nullfn, gensym("signal"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_octaves, gensym("octaves"), A_FLOAT, 0);
-    class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_FLOAT, 0);
+    class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_GIMME, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_normalize, gensym("normalize"), A_FLOAT, 0);
 }
