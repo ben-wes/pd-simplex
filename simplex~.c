@@ -8,12 +8,15 @@
 #define SEED 0
 
 #define F2   0.36602540378f // 0.5*(sqrt(3.0)-1.0);
+
 #define G2   0.2113248654f  // (3.0-sqrt(3.0))/6.0;
 #define G2_2 0.42264973081f
+
 #define F3   0.33333333333f // 1.0/3.0;
 #define G3   0.16666666666f // 1.0/6.0
 #define G3_2 0.33333333333f
 #define G3_3 0.5f
+
 #define F4   0.30901699437f // (sqrt(5.0)-1.0)/4.0;
 #define G4   0.13819660112f // (5.0-sqrt(5.0))/20.0;
 #define G4_2 0.27639320225f
@@ -62,25 +65,26 @@ static inline t_float grad4( int hash, t_float x, t_float y, t_float z, t_float 
 
 // A lookup table to traverse the simplex around a given point in 4D.
 static const unsigned char simplex4[64][4] = {
-{0,1,2,3},{0,1,3,2},{0,0,0,0},{0,2,3,1},{0,0,0,0},{0,0,0,0},{0,0,0,0},{1,2,3,0},
-{0,2,1,3},{0,0,0,0},{0,3,1,2},{0,3,2,1},{0,0,0,0},{0,0,0,0},{0,0,0,0},{1,3,2,0},
-{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
-{1,2,0,3},{0,0,0,0},{1,3,0,2},{0,0,0,0},{0,0,0,0},{0,0,0,0},{2,3,0,1},{2,3,1,0},
-{1,0,2,3},{1,0,3,2},{0,0,0,0},{0,0,0,0},{0,0,0,0},{2,0,3,1},{0,0,0,0},{2,1,3,0},
-{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
-{2,0,1,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,0,1,2},{3,0,2,1},{0,0,0,0},{3,1,2,0},
-{2,1,0,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,1,0,2},{0,0,0,0},{3,2,0,1},{3,2,1,0}};
+    {0,1,2,3}, {0,1,3,2}, {0,0,0,0}, {0,2,3,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {1,2,3,0},
+    {0,2,1,3}, {0,0,0,0}, {0,3,1,2}, {0,3,2,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {1,3,2,0},
+    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    {1,2,0,3}, {0,0,0,0}, {1,3,0,2}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {2,3,0,1}, {2,3,1,0},
+    {1,0,2,3}, {1,0,3,2}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {2,0,3,1}, {0,0,0,0}, {2,1,3,0},
+    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
+    {2,0,1,3}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {3,0,1,2}, {3,0,2,1}, {0,0,0,0}, {3,1,2,0},
+    {2,1,0,3}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {3,1,0,2}, {0,0,0,0}, {3,2,0,1}, {3,2,1,0}
+};
 
 static const unsigned char simplex3[8][6] = {
     // The entries correspond to (i1, j1, k1, i2, j2, k2) for each condition
-    {0, 0, 1, 0, 1, 1}, // ZYX 0
-    {0, 0, 0, 0, 0, 0},
-    {0, 1, 0, 0, 1, 1}, // YZX 2:   2
-    {0, 1, 0, 1, 1, 0}, // YXZ 3:   2 1
-    {0, 0, 1, 1, 0, 1}, // ZXY 4: 4
-    {1, 0, 0, 1, 0, 1}, // XZY 5: 4   1
-    {0, 0, 0, 0, 0, 0},
-    {1, 0, 0, 1, 1, 0}  // XYZ 7: 4 2 1
+    {0,0,1,0,1,1}, // ZYX 0
+    {0,0,0,0,0,0},
+    {0,1,0,0,1,1}, // YZX 2:   2
+    {0,1,0,1,1,0}, // YXZ 3:   2 1
+    {0,0,1,1,0,1}, // ZXY 4: 4
+    {1,0,0,1,0,1}, // XZY 5: 4   1
+    {0,0,0,0,0,0},
+    {1,0,0,1,1,0}  // XYZ 7: 4 2 1
 };
 
 static inline unsigned int lcg_next(unsigned int *seed) {
@@ -292,12 +296,12 @@ t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_
     // First, six pair-wise comparisons are performed between each possible pair
     // of the four coordinates, and the results are used to add up binary bits
     // for an integer index.
-    int c1 = (x0 > y0) ? 32 : 0;
-    int c2 = (x0 > z0) ? 16 : 0;
-    int c3 = (y0 > z0) ? 8 : 0;
-    int c4 = (x0 > w0) ? 4 : 0;
-    int c5 = (y0 > w0) ? 2 : 0;
-    int c6 = (z0 > w0) ? 1 : 0;
+    int c1 = (x0 > y0) << 5;
+    int c2 = (x0 > z0) << 4;
+    int c3 = (y0 > z0) << 3;
+    int c4 = (x0 > w0) << 2;
+    int c5 = (y0 > w0) << 1;
+    int c6 = (z0 > w0);
     int c = c1 + c2 + c3 + c4 + c5 + c6;
 
     int i1, j1, k1, l1; // The integer offsets for the second simplex corner
@@ -309,20 +313,20 @@ t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_
     // impossible. Only the 24 indices which have non-zero entries make any sense.
     // We use a thresholding to set the coordinates in turn from the largest magnitude.
     // The number 3 in the "simplex" array is at the position of the largest coordinate.
-    i1 = simplex4[c][0]>=3 ? 1 : 0;
-    j1 = simplex4[c][1]>=3 ? 1 : 0;
-    k1 = simplex4[c][2]>=3 ? 1 : 0;
-    l1 = simplex4[c][3]>=3 ? 1 : 0;
+    i1 = simplex4[c][0] > 2;
+    j1 = simplex4[c][1] > 2;
+    k1 = simplex4[c][2] > 2;
+    l1 = simplex4[c][3] > 2;
     // The number 2 in the "simplex" array is at the second largest coordinate.
-    i2 = simplex4[c][0]>=2 ? 1 : 0;
-    j2 = simplex4[c][1]>=2 ? 1 : 0;
-    k2 = simplex4[c][2]>=2 ? 1 : 0;
-    l2 = simplex4[c][3]>=2 ? 1 : 0;
+    i2 = simplex4[c][0] > 1;
+    j2 = simplex4[c][1] > 1;
+    k2 = simplex4[c][2] > 1;
+    l2 = simplex4[c][3] > 1;
     // The number 1 in the "simplex" array is at the second smallest coordinate.
-    i3 = simplex4[c][0]>=1 ? 1 : 0;
-    j3 = simplex4[c][1]>=1 ? 1 : 0;
-    k3 = simplex4[c][2]>=1 ? 1 : 0;
-    l3 = simplex4[c][3]>=1 ? 1 : 0;
+    i3 = simplex4[c][0] > 0;
+    j3 = simplex4[c][1] > 0;
+    k3 = simplex4[c][2] > 0;
+    l3 = simplex4[c][3] > 0;
     // The fifth corner has all coordinate offsets = 1, so no need to look that up.
 
     t_float x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords
@@ -418,7 +422,7 @@ static t_int *simplex_tilde_perform(t_int *w) {
             pos[channel] = in_coord[nsamples * channel + i];
         *out++ = generate_noise(x, pos, in_persistence[i], nchans);
     }
-    return (w + 7);
+    return w+7;
 }
 
 void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
@@ -457,12 +461,12 @@ void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     outlet_new(&x->x_obj, &s_signal);
 
     initPermutation(x, SEED);
-    return(x);
+    return x;
 }
 
 void *simplex_tilde_free(t_simplex_tilde *x){
     inlet_free(x->x_inlet_persistence);
-    return(void *)x;
+    return (void *)x;
 }
 
 void simplex_tilde_setup(void) {
