@@ -8,33 +8,40 @@ The current version is based on https://github.com/stegu/perlin-noise/blob/maste
 ## Installation
 Compilation requires [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/), which is included as a submodule here.
 ~~~
-git clone --recurse-submodules https://github.com/ben-wes/simplex.git
-cd simplex
+git clone --recurse-submodules https://github.com/ben-wes/simplex.git simplex~
+cd simplex~
 make install
 ~~~
 
 ## Usage
-* left inlet expects a multichannel signal with up to 4 dimensions for the noise sampling position. The noise algorithm (and therefore its performance) is selected according to the number of channels.
-* right inlet can be used to control the persistence value with a signal (or float inputs).
-* output is the sampled noise in signal rate.
+### Inlets / outlets
+* 1st inlet expects a multichannel signal with up to 4 dimensions for the noise sampling position. The noise algorithm (and therefore its performance) is selected according to the number of channels.
+* 2nd inlet can be used to control the persistence value with a signal (or float inputs).
+* outlet outputs the sampled noise value at signal rate.
 
-#### Creation arguments
-* optional `-n` flag at the beginning activates normalization of the octaves' sum to keep values in the [-1..1] range
-* first numerical argument sets the number of octaves (defaults to 1)
-* second numerical argument sets initial persistence (defaults to 0.5) 
+### Creation arguments
+#### Optional flags
+* `-n` flag activates normalization of the octaves' sum to keep values in the [-1..1] range
+* `-s <int>` flag initializes the noise's permutation table with a given seed
 
-#### Messages
+#### Optional numerical arguments (must be written after the flags)
+* first arg sets the number of octaves (defaults to `1`)
+* second arg sets initial persistence (defaults to `0.5`) 
+
+### Messages
 * `[seed <int>(` generates different (deterministic) permutation tables for the simplex function
 * `[normalize 0/1(` (de)activates normalization
 * `[octaves <int>(` dynamically changes the number of octaves
 
-## Additional information
-#### Octaves
-In case of more than 1 octave, additional noise octaves get sampled, i.e. downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the coordinate with `2^(octave-1)` - for example:
-* 2d coordinate `(1, -3)` samples from `2*(1, -3) = (2,  -6)` for 2nd octave
-* 2d coordinate `(1, -3)` samples from `4*(1, -3) = (4, -12)` for 3rd octave
+---
 
-#### Persistence
+## Additional information
+### Octaves
+In case of more than 1 octave, additional noise octaves get sampled, i.e. downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the coordinate with `2^(octave-1)` - for example:
+* input `(1, -3)` samples from `2*(1, -3) = (2,  -6)` for 2nd octave
+* input `(1, -3)` samples from `4*(1, -3) = (4, -12)` for 3rd octave
+
+### Persistence
 The persistence value determines the influence of successive octaves on the final output. It is a multiplier applied to each octave’s amplitude. Lower persistence values cause the amplitudes to decrease rapidly with each octave, leading to a smoother noise pattern. Conversely, higher persistence values maintain stronger amplitudes in higher octaves, resulting in more detailed and rougher (high frequency) patterns - for example:
 * persistence of `0.5` yields octaves' amplitudes `1, 0.5, 0.25, 0.125, 0.0625, ...`
 * persistence of `0.9` yields octaves' amplitudes `1, 0.9, 0.81, 0.729, 0.6561, ...`
