@@ -97,16 +97,23 @@ void shuffle(int *array, int n) {
     }
 }
 
-void initPermutation(t_simplex_tilde *x) {
+void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
     int basePermutation[256];
     for (int i = 0; i < 256; i++) {
         basePermutation[i] = i;
     }
+    srand(seed);
     shuffle(basePermutation, 256);
     for (int i = 0; i < 256; i++) {
         x->x_perm[i] = basePermutation[i];
-        x->x_perm[i+256] = basePermutation[i];
+        x->x_perm[i + 256] = basePermutation[i];
     }
+}
+
+void init_permutation(t_simplex_tilde *x) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    init_permutation_with_seed(x, (unsigned int)ts.tv_nsec);
 }
 
 // 1D simplex noise
@@ -432,12 +439,10 @@ static void simplex_tilde_normalize(t_simplex_tilde *x, t_floatarg f){
 }
 
 static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    unsigned int seed = (ac) ? atom_getfloat(av) : (unsigned int)ts.tv_nsec;
-    post("Seed used: %u", seed);
-    srand(seed);
-    initPermutation(x);
+    if (ac)
+        init_permutation_with_seed(x, atom_getfloat(av));
+    else
+        init_permutation(x);
     (void)s;
 }
 
@@ -450,10 +455,14 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     t_float persistence;
 
     x->x_normalize = 0;
-    if (ac && av->a_type == A_SYMBOL) {
+    init_permutation(x);
+    while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
             x->x_normalize = 1;
-        else
+        else if (atom_getsymbol(av) == gensym("-s")) {
+            ac--, av++;
+            init_permutation_with_seed(x, (unsigned int)atom_getint(av));
+        } else
             pd_error(x, "[simplex~]: invalid argument");
         ac--, av++;
     }
@@ -462,11 +471,6 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
-
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    srand((unsigned int)ts.tv_nsec);
-    initPermutation(x);
     (void)s;
     return x;
 }
