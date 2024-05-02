@@ -1,11 +1,12 @@
 #include "m_pd.h"
 #include <math.h>
+#include <time.h>
+#include <stdlib.h>
 
 #define max(a,b) ( ((a) > (b)) ? (a) : (b) )
 #define fastfloor(x) ( ((int)(x)<=(x)) ? ((int)x) : (((int)x)-1) )
 
 #define PERSISTENCE 0.5f
-#define SEED 0
 
 #define F2   0.36602540378f // 0.5*(sqrt(3.0)-1.0);
 
@@ -87,17 +88,10 @@ static const unsigned char simplex3[8][6] = {
     {1,0,0,1,1,0}  // XYZ 7: 4 2 1
 };
 
-static inline unsigned int lcg_next(unsigned int *seed) {
-    const unsigned int a = 1664525;
-    const unsigned int c = 1013904223;
-    *seed = (a * (*seed) + c); // Modulo 2^32 is implicit due to unsigned int overflow
-    return *seed;
-}
-
-void shuffle(int *array, int n, unsigned int seed) {
+void shuffle(int *array, int n, unsigned int *seed) {
+    srand(*seed);
     for (int i = n - 1; i > 0; i--) {
-        unsigned int rand = lcg_next(&seed);
-        int j = rand % (i + 1);
+        int j = rand() % (i + 1);
         int temp = array[i];
         array[i] = array[j];
         array[j] = temp;
@@ -109,7 +103,7 @@ void initPermutation(t_simplex_tilde *x, unsigned int seed) {
     for (int i = 0; i < 256; i++) {
         basePermutation[i] = i;
     }
-    shuffle(basePermutation, 256, seed);
+    shuffle(basePermutation, 256, &seed);
     for (int i = 0; i < 256; i++) {
         x->x_perm[i] = basePermutation[i];
         x->x_perm[i+256] = basePermutation[i];
@@ -460,7 +454,7 @@ void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
         pd_float((t_pd *)x->x_inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
 
-    initPermutation(x, SEED);
+    initPermutation(x, time(NULL));
     return x;
 }
 
