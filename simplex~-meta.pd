@@ -1,0 +1,6 @@
+#N canvas 796 630 399 158 10;
+#X text 10 18 NAME simplex~;
+#X text 10 38 AUTHOR Ben Wesch;
+#X text 10 58 DESCRIPTION Single external for signal rate simplex noise sampling with 1d \, 2d \, 3d and 4d multichannel input;
+#X text 10 89 LICENSE Unlicense;
+#X text 10 109 VERSION 0.1.2;

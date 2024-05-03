@@ -6,9 +6,9 @@ The initial code was an experiment generated via ChatGPT4. The fascinating part 
 The current version is based on https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c with minor changes.
 
 ## Installation
-Compilation requires [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/), which is included as a submodule here.
+Compilation requires [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/), which is included as a submodule here (therefore requiring the `--recursive` parameter when cloned).
 ~~~
-git clone --recurse-submodules https://github.com/ben-wes/simplex.git simplex~
+git clone --recursive https://github.com/ben-wes/simplex.git simplex~
 cd simplex~
 make install
 ~~~

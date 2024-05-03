@@ -4,6 +4,8 @@ on: [push, pull_request]
 
 env:
   PD_VERSION: 0.54-1
+  PDINCLUDEDIR: ./pure-data/src
+  PDLIBDIR: ./build
 
 jobs:
   build-linux:
@@ -21,13 +23,13 @@ jobs:
         run: git clone --branch=${{ env.PD_VERSION }} --depth=1 https://github.com/pure-data/pure-data.git
 
       - name: Compile external
-        run: make PDINCLUDEDIR="./pure-data/src" floatsize=${{ matrix.precision }} extension=linux-${{ matrix.arch }}-${{ matrix.precision }}.so
+        run: make install floatsize=${{ matrix.precision }} extension=linux-${{ matrix.arch }}-${{ matrix.precision }}.so
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: simplex-linux-${{ matrix.arch }}-pd${{ matrix.precision }}
-          path: simplex*.so
+          path: build/simplex~
 
   build-macos:
     runs-on: macos-latest
@@ -47,13 +49,13 @@ jobs:
         run: brew install make
 
       - name: Compile external
-        run: make PDINCLUDEDIR="./pure-data/src" floatsize=${{ matrix.precision }} extension=darwin-${{ matrix.arch }}-${{ matrix.precision }}.so
+        run: make install floatsize=${{ matrix.precision }} extension=darwin-${{ matrix.arch }}-${{ matrix.precision }}.so
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: simplex-macos-${{ matrix.arch }}-pd${{ matrix.precision }}
-          path: simplex*.so
+          path: build/simplex~
 
   build-windows:
     runs-on: windows-latest
@@ -79,13 +81,13 @@ jobs:
         shell: bash
         run: |
           export PATH="/c/msys64/mingw64/bin:$PATH"  # Ensure MinGW GCC is preferred if needed
-          make CC=gcc PDINCLUDEDIR="pd-${{env.PD_VERSION}}/src" PDLIBDIR="pd-${{env.PD_VERSION}}/bin" PDDIR="pd-${{env.PD_VERSION}}" PDBINDIR="pd-${{env.PD_VERSION}}/bin" extension=windows-${{ matrix.arch }}-32.dll
+          make install CC=gcc PDINCLUDEDIR="pd-${{env.PD_VERSION}}/src" PDDIR="pd-${{env.PD_VERSION}}" PDBINDIR="pd-${{env.PD_VERSION}}/bin" extension=windows-${{ matrix.arch }}-32.dll
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
           name: simplex-windows-${{ matrix.arch }}-pd${{ matrix.precision }}
-          path: simplex*.dll
+          path: build/simplex~
 
 
   download-artifacts:
