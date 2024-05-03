@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64]
         precision: [32, 64]
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        arch: [fat]
         precision: [32, 64]
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
         run: brew install make
 
       - name: Compile external
-        run: make install floatsize=${{ matrix.precision }} extension=darwin-${{ matrix.arch }}-${{ matrix.precision }}.so
+        run: make install floatsize=${{ matrix.precision }} extension=darwin-${{ matrix.arch }}-${{ matrix.precision }}.so arch="x86_64 arm64"
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
@@ -61,7 +61,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        arch: [amd64, i386]
+        arch: [amd64]
         precision: [32]
     steps:
       - uses: actions/checkout@v4
@@ -96,13 +96,16 @@ jobs:
     strategy:
       matrix:
         os: [linux, macos, windows]
-        arch: [amd64, arm64, i386]
+        arch: [amd64, arm64, fat]
         precision: [32, 64]
         exclude:
           - { os: windows, precision: 64 }
           - { os: windows, arch: arm64 }
-          - { os: linux, arch: i386 }
-          - { os: macos, arch: i386 }
+          - { os: windows, arch: fat }
+          - { os: linux, arch: fat }
+          - { os: linux, arch: arm64 }
+          - { os: macos, arch: arm64 }
+          - { os: macos, arch: amd64 }
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -158,14 +161,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          path: simplex-src
+          path: simplex~-src
 
       - uses: actions/download-artifact@v4
         with:
           name: simplex~
-          path: simplex
+          path: simplex~
 
-      - name: Create Deken Package
+      - name: Create Deken Package and upload
         shell: bash
         env:
           DEKEN_USERNAME: ${{ secrets.DEKEN_USERNAME }}
@@ -173,14 +176,22 @@ jobs:
         run: |
           SHORT=${GITHUB_REF:11} # remove the 'refs/tags/' prefix
           SLUG=${SHORT//\//_} # replace '/' with '_'
+          
           if [[ "${GITHUB_REF}" == *"test"* ]]; then
-            echo "dry-run: preparing to upload for test tag ${GITHUB_REF}"
-            docker run --rm --volume ${PWD}/simplex-src:/simplex~ registry.git.iem.at/pd/deken deken package -v "${SLUG}" /simplex~
-            ls -d simplex*
-            docker run --rm --volume ${PWD}/simplex:/simplex~ registry.git.iem.at/pd/deken deken --no-source-error package -v "${SLUG}" /simplex~
-            ls -d simplex*
+            echo "Dry-run: Preparing to package for test tag ${GITHUB_REF}"
+            mkdir -p ${PWD}/package
+            docker run --rm --user $(id -u) --volume ${PWD}/simplex~:/simplex~ --volume ${PWD}/package:/package registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}" /simplex~
+            echo "Listing generated Deken files for potential release:"
+            ls -l ${PWD}/package
+            echo "Listing contents of the .dek file:"
+            dek_files=$(ls ${PWD}/package/*.dek)
+            for dek_file in $dek_files; do
+              unzip -l "$dek_file"
+            done
+          else
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/simplex~-src:/simplex~ registry.git.iem.at/pd/deken \
+                deken upload --name simplex~ /simplex~
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/simplex~:/simplex~ registry.git.iem.at/pd/deken \
+                deken upload --name simplex~ --no-source-error /simplex~
           fi
-           # else
-            # docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/simplex-src:/simplex~ registry.git.iem.at/pd/deken deken upload -v "${SLUG}" /simplex~
-            # docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/simplex:/simplex~ registry.git.iem.at/pd/deken deken upload --no-source-error -v "${SLUG}" /simplex~
-          # fi
