@@ -34,6 +34,7 @@ make install
 * `[seed <int>(` generates different (deterministic) permutation tables for the simplex function
 * `[normalize 0/1(` (de)activates normalization
 * `[octaves <int>(` dynamically changes the number of octaves
+* `[persistence <float>(` changes persistence (while no signal is connected)
 
 ---
 
