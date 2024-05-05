@@ -6,6 +6,7 @@ env:
   PD_VERSION: 0.54-1
   PDINCLUDEDIR: ./pure-data/src
   PDLIBDIR: ./build
+  LIBNAME: simplex~
 
 jobs:
   build-linux:
@@ -28,8 +29,8 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: simplex~-linux-${{ matrix.arch }}-pd${{ matrix.precision }}
-          path: build/simplex~
+          name: ${{env.LIBNAME}}-linux-${{ matrix.arch }}-pd${{ matrix.precision }}
+          path: build/${{env.LIBNAME}}
 
   build-macos:
     runs-on: macos-latest
@@ -54,8 +55,8 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: simplex~-macos-${{ matrix.arch }}-pd${{ matrix.precision }}
-          path: build/simplex~
+          name: ${{env.LIBNAME}}-macos-${{ matrix.arch }}-pd${{ matrix.precision }}
+          path: build/${{env.LIBNAME}}
 
   build-windows:
     runs-on: windows-latest
@@ -86,8 +87,8 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: simplex~-windows-${{ matrix.arch }}-pd${{ matrix.precision }}
-          path: build/simplex~
+          name: ${{env.LIBNAME}}-windows-${{ matrix.arch }}-pd${{ matrix.precision }}
+          path: build/${{env.LIBNAME}}
 
 
   download-artifacts:
@@ -110,7 +111,7 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: simplex~-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.precision }}
+          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.precision }}
           path: artifacts/${{ matrix.os }}
 
   package-release:
@@ -122,7 +123,7 @@ jobs:
     steps:
       - name: Setup directories
         run: |
-          mkdir -p simplex~
+          mkdir -p ${{env.LIBNAME}}
           mkdir -p artifacts/linux
           mkdir -p artifacts/macos
           mkdir -p artifacts/windows
@@ -134,19 +135,19 @@ jobs:
 
       - name: Merge Artifacts
         run: |
-          cp -rn artifacts/*/* simplex~/
+          cp -rn artifacts/*/* ${{env.LIBNAME}}/
 
       - name: Rezip
         run: |
           SHORT=${GITHUB_REF:11} # Removes 'refs/tags/' prefix
           SLUG=${SHORT//\//_} # Replaces '/' with '_'
-          zip -r simplex~-${SLUG}.zip simplex~
+          zip -r ${{env.LIBNAME}}-${SLUG}.zip ${{env.LIBNAME}}
 
       - name: Upload release content as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: simplex~
-          path: simplex~
+          name: ${{env.LIBNAME}}
+          path: ${{env.LIBNAME}}
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -161,12 +162,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          path: simplex~-src
+          path: ${{env.LIBNAME}}-src
 
       - uses: actions/download-artifact@v4
         with:
-          name: simplex~
-          path: simplex~
+          name: ${{env.LIBNAME}}
+          path: ${{env.LIBNAME}}
 
       - name: Create Deken Package and upload
         shell: bash
@@ -180,8 +181,8 @@ jobs:
           if [[ "${GITHUB_REF}" == *"test"* ]]; then
             echo "Dry-run: Preparing to package for test tag ${GITHUB_REF}"
             mkdir -p ${PWD}/package
-            docker run --rm --user $(id -u) --volume ${PWD}/simplex~:/simplex~ --volume ${PWD}/package:/package registry.git.iem.at/pd/deken \
-              deken package --output-dir /package -v "${SLUG}" /simplex~
+            docker run --rm --user $(id -u) --volume ${PWD}/${{env.LIBNAME}}:/${{env.LIBNAME}} --volume ${PWD}/package:/package registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}" /${{env.LIBNAME}}
             echo "Listing generated Deken files for potential release:"
             ls -l ${PWD}/package
             echo "Listing contents of the .dek file:"
@@ -190,8 +191,8 @@ jobs:
               unzip -l "$dek_file"
             done
           else
-            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/simplex~-src:/simplex~ registry.git.iem.at/pd/deken \
-                deken upload --name simplex~ /simplex~
-            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/simplex~:/simplex~ registry.git.iem.at/pd/deken \
-                deken upload --name simplex~ --no-source-error /simplex~
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+                deken upload --name ${{env.LIBNAME}} /${{env.LIBNAME}}
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/${{env.LIBNAME}}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+                deken upload --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
           fi
