@@ -4,9 +4,11 @@
 #include <stdlib.h>
 
 #define max(a,b) ( ((a) > (b)) ? (a) : (b) )
+#define min(a,b) ( ((a) < (b)) ? (a) : (b) )
 #define fastfloor(x) ( ((int)(x)<=(x)) ? ((int)x) : (((int)x)-1) )
 
 #define PERSISTENCE 0.5f
+#define MAX_DIMENSIONS 4
 
 #define F2   0.36602540378f // 0.5*(sqrt(3.0)-1.0);
 
@@ -88,7 +90,7 @@ static const unsigned char simplex3[8][6] = {
     {1,0,0,1,1,0}  // XYZ 7: 4 2 1
 };
 
-void shuffle(int *array, int n) {
+static void shuffle(int *array, int n) {
     for (int i = n - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         int temp = array[i];
@@ -97,7 +99,7 @@ void shuffle(int *array, int n) {
     }
 }
 
-void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
+static void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
     int basePermutation[256];
     for (int i = 0; i < 256; i++) {
         basePermutation[i] = i;
@@ -110,14 +112,15 @@ void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
     }
 }
 
-void init_permutation(t_simplex_tilde *x) {
+static void init_permutation(t_simplex_tilde *x) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     init_permutation_with_seed(x, (unsigned int)ts.tv_nsec);
 }
 
 // 1D simplex noise
-t_float snoise1(t_simplex_tilde *x, t_float x_in) {
+static t_float snoise1(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_float w_in) {
+    (void)y_in; (void)z_in; (void)w_in;
     int i0 = fastfloor(x_in);
     int i1 = i0 + 1;
     t_float x0 = x_in - i0;
@@ -136,7 +139,8 @@ t_float snoise1(t_simplex_tilde *x, t_float x_in) {
 }
 
 // 2D simplex noise
-t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in) {
+static t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_float w_in) {
+    (void)z_in; (void)w_in;
     t_float n0, n1, n2; // Noise contributions from the three corners
 
     // Skew the input space to determine which simplex cell we're in
@@ -189,7 +193,8 @@ t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in) {
 }
 
 // 3D simplex noise
-t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in) {
+static t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_float w_in) {
+    (void)w_in;
     t_float n0, n1, n2, n3; // Noise contributions from the four corners
 
     // Skew the input space to determine which simplex cell we're in
@@ -263,7 +268,7 @@ t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in) {
 
 
 // 4D simplex noise
-t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_float w_in) {
+static t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_float w_in) {
     t_float n0, n1, n2, n3, n4; // Noise contributions from the five corners
 
     // Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
@@ -382,29 +387,19 @@ t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z_in, t_
     return 62.0f * (n0 + n1 + n2 + n3 + n4);
 }
 
-static t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float persistence, int channel_count) {
-    t_float result = 0, persistence_sum = 0, scale, coeff;
+static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float persistence, int channel_count) {
+    t_float result = 0.0, persistence_sum = 0.0, scale, coeff;
+    static t_float (*noise_func[])(t_simplex_tilde *, t_float, t_float, t_float, t_float) = {
+        snoise1, snoise2, snoise3, snoise4
+    };
 
     for (int octave = 0; octave < x->x_octaves; octave++) {
         scale = pow(2, octave);
         coeff = pow(persistence, octave);
         persistence_sum += fabs(coeff);
-
-        switch (channel_count) {
-            case 1:
-                result += snoise1(x, pos[0] * scale) * coeff;
-                break;
-            case 2:
-                result += snoise2(x, pos[0] * scale, pos[1] * scale) * coeff;
-                break;
-            case 3:
-                result += snoise3(x, pos[0] * scale, pos[1] * scale, pos[2] * scale) * coeff;
-                break;
-            case 4:
-                result += snoise4(x, pos[0] * scale, pos[1] * scale, pos[2] * scale, pos[3] * scale) * coeff;
-                break;
-        }
+        result += noise_func[channel_count-1](x, pos[0] * scale, pos[1] * scale, pos[2] * scale, pos[3] * scale) * coeff;
     }
+
     return x->x_normalize ? result / persistence_sum : result;
 }
 
@@ -418,9 +413,10 @@ static t_int *simplex_tilde_perform(t_int *w) {
 
     for (int i = 0; i < nsamples; i++) {
         t_float pos[4] = {0};
-        for (int channel = 0; channel < nchans; channel++)
+        int nch = min(MAX_DIMENSIONS, nchans);
+        for (int channel = 0; channel < nch; channel++)
             pos[channel] = in_coord[nsamples * channel + i];
-        *out++ = generate_noise(x, pos, in_persistence[i], nchans);
+        *out++ = generate_noise(x, pos, in_persistence[i], nch);
     }
     return w+7;
 }
