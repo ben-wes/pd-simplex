@@ -7,8 +7,8 @@ The current version is based on https://github.com/stegu/perlin-noise/blob/maste
 
 ![simplex~-help.pd screenshot](simplex%7E-help.pd.png)
 
-## Installation
-Compilation requires [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/), which is included as a submodule here (therefore requiring the `--recursive` parameter when cloned).
+## Build / Installation
+Compilation requires [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/) (included as submodule, requiring the `--recursive` parameter below).
 ~~~
 git clone --recursive https://github.com/ben-wes/simplex.git
 cd simplex
@@ -40,7 +40,7 @@ make install
 
 ## Additional information
 ### Octaves
-In case of more than 1 octave, additional noise octaves get sampled, i.e. downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the coordinate with `2^(octave-1)` - for example:
+In case of more than 1 octave, additional noise octaves get sampled, i.e. downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the sampling coordinate with `2^(octave-1)` - for example:
 * input `(1, -3)` samples from `2*(1, -3) = (2,  -6)` for 2nd octave
 * input `(1, -3)` samples from `4*(1, -3) = (4, -12)` for 3rd octave
 
@@ -49,4 +49,4 @@ The persistence value determines the influence of successive octaves on the fina
 * persistence of `0.5` yields octaves' amplitudes `1, 0.5, 0.25, 0.125, 0.0625, ...`
 * persistence of `0.9` yields octaves' amplitudes `1, 0.9, 0.81, 0.729, 0.6561, ...`
 
-If normalization is activated (through creation argument or message), the sum of all octaves' amplitudes gets normalized to 1.
+If normalization is activated (via creation argument or message), the sum of all octaves' amplitudes gets normalized to 1.
