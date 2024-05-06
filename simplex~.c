@@ -30,10 +30,10 @@ static t_class *simplex_tilde_class;
 
 typedef struct _simplex_tilde {
     t_object x_obj;
-    t_inlet *x_inlet_persistence;
-    int x_normalize;
-    int x_octaves;
-    int x_perm[512];
+    t_inlet *inlet_persistence;
+    int normalize;
+    int octaves;
+    int perm[512];
 } t_simplex_tilde;
 
 // simplex noises code from https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c
@@ -107,8 +107,8 @@ static void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
     srand(seed);
     shuffle(basePermutation, 256);
     for (int i = 0; i < 256; i++) {
-        x->x_perm[i] = basePermutation[i];
-        x->x_perm[i + 256] = basePermutation[i];
+        x->perm[i] = basePermutation[i];
+        x->perm[i + 256] = basePermutation[i];
     }
 }
 
@@ -130,11 +130,11 @@ static t_float snoise1(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
 
     t_float t0 = 1.0f - x0*x0;
     t0 *= t0;
-    n0 = t0 * t0 * grad1(x->x_perm[i0 & 0xff], x0);
+    n0 = t0 * t0 * grad1(x->perm[i0 & 0xff], x0);
 
     t_float t1 = 1.0f - x1*x1;
     t1 *= t1;
-    n1 = t1 * t1 * grad1(x->x_perm[i1 & 0xff], x1);
+    n1 = t1 * t1 * grad1(x->perm[i1 & 0xff], x1);
     return 0.395 * (n0 + n1);
 }
 
@@ -167,7 +167,7 @@ static t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
     t_float x2 = x0 - 1.0f + G2_2; // Offsets for last corner in (x,y) unskewed coords
     t_float y2 = y0 - 1.0f + G2_2;
 
-    // Wrap the integer indices at 256, to avoid indexing x->x_perm[] out of bounds
+    // Wrap the integer indices at 256, to avoid indexing x->perm[] out of bounds
     int ii = i & 0xff;
     int jj = j & 0xff;
 
@@ -175,17 +175,17 @@ static t_float snoise2(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
     t_float t0 = 0.5f - x0*x0-y0*y0;
     t0 = max(t0, 0.0f);
     t0 *= t0;
-    n0 = t0 * t0 * grad2(x->x_perm[ii+x->x_perm[jj]], x0, y0); 
+    n0 = t0 * t0 * grad2(x->perm[ii+x->perm[jj]], x0, y0); 
 
     t_float t1 = 0.5f - x1*x1-y1*y1;
     t1 = max(t1, 0.0f);
     t1 *= t1;
-    n1 = t1 * t1 * grad2(x->x_perm[ii+i1+x->x_perm[jj+j1]], x1, y1);
+    n1 = t1 * t1 * grad2(x->perm[ii+i1+x->perm[jj+j1]], x1, y1);
 
     t_float t2 = 0.5f - x2*x2-y2*y2;
     t2 = max(t2, 0.0f);
     t2 *= t2;
-    n2 = t2 * t2 * grad2(x->x_perm[ii+1+x->x_perm[jj+1]], x2, y2);
+    n2 = t2 * t2 * grad2(x->perm[ii+1+x->perm[jj+1]], x2, y2);
 
     // Add contributions from each corner to get the final noise value.
     // The result is scaled to return values in the interval [-1,1].
@@ -235,7 +235,7 @@ static t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
     t_float y3 = y0 - 1.0f + G3_3;
     t_float z3 = z0 - 1.0f + G3_3;
 
-    // Wrap the integer indices at 256, to avoid indexing x->x_perm[] out of bounds
+    // Wrap the integer indices at 256, to avoid indexing x->perm[] out of bounds
     int ii = i & 0xff;
     int jj = j & 0xff;
     int kk = k & 0xff;
@@ -244,22 +244,22 @@ static t_float snoise3(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
     t_float t0 = 0.5f - x0*x0 - y0*y0 - z0*z0;
     t0 = max(t0, 0.0f);
     t0 *= t0;
-    n0 = t0 * t0 * grad3(x->x_perm[ii+x->x_perm[jj+x->x_perm[kk]]], x0, y0, z0);
+    n0 = t0 * t0 * grad3(x->perm[ii+x->perm[jj+x->perm[kk]]], x0, y0, z0);
 
     t_float t1 = 0.5f - x1*x1 - y1*y1 - z1*z1;
     t1 = max(t1, 0.0f);
     t1 *= t1;
-    n1 = t1 * t1 * grad3(x->x_perm[ii+i1+x->x_perm[jj+j1+x->x_perm[kk+k1]]], x1, y1, z1);
+    n1 = t1 * t1 * grad3(x->perm[ii+i1+x->perm[jj+j1+x->perm[kk+k1]]], x1, y1, z1);
 
     t_float t2 = 0.5f - x2*x2 - y2*y2 - z2*z2;
     t2 = max(t2, 0.0f);
     t2 *= t2;
-    n2 = t2 * t2 * grad3(x->x_perm[ii+i2+x->x_perm[jj+j2+x->x_perm[kk+k2]]], x2, y2, z2);
+    n2 = t2 * t2 * grad3(x->perm[ii+i2+x->perm[jj+j2+x->perm[kk+k2]]], x2, y2, z2);
 
     t_float t3 = 0.5f - x3*x3 - y3*y3 - z3*z3;
     t3 = max(t3, 0.0f);
     t3 *= t3;
-    n3 = t3 * t3 * grad3(x->x_perm[ii+1+x->x_perm[jj+1+x->x_perm[kk+1]]], x3, y3, z3);
+    n3 = t3 * t3 * grad3(x->perm[ii+1+x->perm[jj+1+x->perm[kk+1]]], x3, y3, z3);
 
     // Add contributions from each corner to get the final noise value.
     // The result is scaled to stay just inside [-1,1]
@@ -351,7 +351,7 @@ static t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
     t_float z4 = z0 - 1.0f + G4_4;
     t_float w4 = w0 - 1.0f + G4_4;
 
-    // Wrap the integer indices at 256, to avoid indexing x->x_perm[] out of bounds
+    // Wrap the integer indices at 256, to avoid indexing x->perm[] out of bounds
     int ii = i & 0xff;
     int jj = j & 0xff;
     int kk = k & 0xff;
@@ -361,27 +361,27 @@ static t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
     t_float t0 = 0.5f - x0*x0 - y0*y0 - z0*z0 - w0*w0;
     t0 = max(t0, 0.0f);
     t0 *= t0;
-    n0 = t0 * t0 * grad4(x->x_perm[ii+x->x_perm[jj+x->x_perm[kk+x->x_perm[ll]]]], x0, y0, z0, w0);
+    n0 = t0 * t0 * grad4(x->perm[ii+x->perm[jj+x->perm[kk+x->perm[ll]]]], x0, y0, z0, w0);
 
     t_float t1 = 0.5f - x1*x1 - y1*y1 - z1*z1 - w1*w1;
     t1 = max(t1, 0.0f);
     t1 *= t1;
-    n1 = t1 * t1 * grad4(x->x_perm[ii+i1+x->x_perm[jj+j1+x->x_perm[kk+k1+x->x_perm[ll+l1]]]], x1, y1, z1, w1);
+    n1 = t1 * t1 * grad4(x->perm[ii+i1+x->perm[jj+j1+x->perm[kk+k1+x->perm[ll+l1]]]], x1, y1, z1, w1);
 
     t_float t2 = 0.5f - x2*x2 - y2*y2 - z2*z2 - w2*w2;
     t2 = max(t2, 0.0f);
     t2 *= t2;
-    n2 = t2 * t2 * grad4(x->x_perm[ii+i2+x->x_perm[jj+j2+x->x_perm[kk+k2+x->x_perm[ll+l2]]]], x2, y2, z2, w2);
+    n2 = t2 * t2 * grad4(x->perm[ii+i2+x->perm[jj+j2+x->perm[kk+k2+x->perm[ll+l2]]]], x2, y2, z2, w2);
 
     t_float t3 = 0.5f - x3*x3 - y3*y3 - z3*z3 - w3*w3;
     t3 = max(t3, 0.0f);
     t3 *= t3;
-    n3 = t3 * t3 * grad4(x->x_perm[ii+i3+x->x_perm[jj+j3+x->x_perm[kk+k3+x->x_perm[ll+l3]]]], x3, y3, z3, w3);
+    n3 = t3 * t3 * grad4(x->perm[ii+i3+x->perm[jj+j3+x->perm[kk+k3+x->perm[ll+l3]]]], x3, y3, z3, w3);
 
     t_float t4 = 0.5f - x4*x4 - y4*y4 - z4*z4 - w4*w4;
     t4 = max(t4, 0.0f);
     t4 *= t4;
-    n4 = t4 * t4 * grad4(x->x_perm[ii+1+x->x_perm[jj+1+x->x_perm[kk+1+x->x_perm[ll+1]]]], x4, y4, z4, w4);
+    n4 = t4 * t4 * grad4(x->perm[ii+1+x->perm[jj+1+x->perm[kk+1+x->perm[ll+1]]]], x4, y4, z4, w4);
 
     // Sum up and scale the result to cover the range [-1,1]
     return 62.0f * (n0 + n1 + n2 + n3 + n4);
@@ -393,14 +393,14 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
         snoise1, snoise2, snoise3, snoise4
     };
 
-    for (int octave = 0; octave < x->x_octaves; octave++) {
+    for (int octave = 0; octave < x->octaves; octave++) {
         scale = pow(2, octave);
         coeff = pow(persistence, octave);
         persistence_sum += fabs(coeff);
         result += noise_func[channel_count-1](x, pos[0] * scale, pos[1] * scale, pos[2] * scale, pos[3] * scale) * coeff;
     }
 
-    return x->x_normalize ? result / persistence_sum : result;
+    return x->normalize ? result / persistence_sum : result;
 }
 
 static t_int *simplex_tilde_perform(t_int *w) {
@@ -427,15 +427,15 @@ void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
 }
 
 static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
-    x->x_octaves = fastfloor(f);
+    x->octaves = fastfloor(f);
 }
 
 static void simplex_tilde_normalize(t_simplex_tilde *x, t_floatarg f){
-    x->x_normalize = (int)f;
+    x->normalize = (int)f;
 }
 
 static void simplex_tilde_persistence(t_simplex_tilde *x, t_floatarg f){
-    pd_float((t_pd *)x->x_inlet_persistence, f);
+    pd_float((t_pd *)x->inlet_persistence, f);
 }
 
 static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
@@ -447,18 +447,18 @@ static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *
 }
 
 static void simplex_tilde_free(t_simplex_tilde *x){
-    inlet_free(x->x_inlet_persistence);
+    inlet_free(x->inlet_persistence);
 }
 
 static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     t_simplex_tilde *x = (t_simplex_tilde *)pd_new(simplex_tilde_class);
     t_float persistence;
 
-    x->x_normalize = 0;
+    x->normalize = 0;
     init_permutation(x);
     while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
-            x->x_normalize = 1;
+            x->normalize = 1;
         else if (atom_getsymbol(av) == gensym("-s")) {
             ac--, av++;
             init_permutation_with_seed(x, (unsigned int)atom_getint(av));
@@ -466,10 +466,10 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
             pd_error(x, "[simplex~]: invalid argument");
         ac--, av++;
     }
-    x->x_octaves = ac-- ? atom_getint(av++) : 1;
+    x->octaves = ac-- ? atom_getint(av++) : 1;
     persistence = ac>0 ? atom_getfloat(av) : PERSISTENCE;
-    x->x_inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
-        pd_float((t_pd *)x->x_inlet_persistence, persistence);
+    x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
+        pd_float((t_pd *)x->inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
     (void)s;
     return x;
