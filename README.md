@@ -3,7 +3,7 @@ Pure Data (Pd) external for signal rate simplex noise with 1d, 2d, 3d and 4d mul
 
 The initial code was an experiment generated via ChatGPT4. The fascinating part of this was that with a few feedback loops, it managed to create a working Pd external. After some research, the noise part of the external turned out to be a pretty exact copy of [this SimplexNoise.cpp](https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp) though.
 
-The current version is based on https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c with minor changes.
+The current version's noise implementation is based on https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c with minor changes.
 
 ![simplex~-help.pd screenshot](simplex%7E-help.pd.png)
 
