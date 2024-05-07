@@ -452,12 +452,14 @@ static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
     init_octave_factors(x);
 }
 
-static void simplex_tilde_normalize(t_simplex_tilde *x, t_floatarg f){
-    x->normalize = (int)f;
-}
-
 static void simplex_tilde_persistence(t_simplex_tilde *x, t_floatarg f){
     pd_float((t_pd *)x->inlet_persistence, f);
+}
+
+static void simplex_tilde_normalize(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av){
+    // activate normalization if no argument is given or anything that is not false
+    x->normalize = !ac || atom_getfloat(av);
+    (void)s;
 }
 
 static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
@@ -522,8 +524,8 @@ void simplex_tilde_setup(void) {
     class_addmethod(simplex_tilde_class, nullfn, gensym("signal"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_GIMME, 0);
+    class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_normalize, gensym("normalize"), A_GIMME, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_coeffs, gensym("coeffs"), A_GIMME, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_octaves, gensym("octaves"), A_FLOAT, 0);
-    class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_normalize, gensym("normalize"), A_FLOAT, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_persistence, gensym("persistence"), A_FLOAT, 0);
 }
