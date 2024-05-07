@@ -27,14 +27,15 @@ make install
 * `-s <int>` flag initializes the noise's permutation table with a given seed
 
 #### Optional numerical arguments (must be written after the flags)
-* first arg sets the number of octaves (defaults to `1`)
+* first arg sets the number of octaves (defaults to `1`, max. is `24`)
 * second arg sets initial persistence (defaults to `0.5`) 
 
 ### Messages
 * `[seed <int>(` generates different (deterministic) permutation tables for the simplex function
-* `[normalize 0/1(` (de)activates normalization
+* `[normalize 0/1(` (de)activates normalization (off by default)
 * `[octaves <int>(` dynamically changes the number of octaves
 * `[persistence <float>(` changes persistence (while no signal is connected)
+* `[coeffs <float> <float> ... <float>(` let's you customize the octave scaling (default is `1, 2, 4, ...`) 
 
 ---
 
