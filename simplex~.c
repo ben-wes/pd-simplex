@@ -9,6 +9,7 @@
 
 #define PERSISTENCE 0.5f
 #define MAX_DIMENSIONS 4
+#define MAX_OCTAVES 24
 
 #define F2   0.36602540378f // 0.5*(sqrt(3.0)-1.0);
 
@@ -33,6 +34,7 @@ typedef struct _simplex_tilde {
     t_inlet *inlet_persistence;
     int normalize;
     int octaves;
+    t_float octave_factors[MAX_OCTAVES];
     int perm[512];
 } t_simplex_tilde;
 
@@ -388,19 +390,33 @@ static t_float snoise4(t_simplex_tilde *x, t_float x_in, t_float y_in, t_float z
 }
 
 static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float persistence, int channel_count) {
-    t_float result = 0.0, persistence_sum = 0.0, scale, coeff;
+    t_float result = 0.0f;
+    t_float coeff = 1.0f;
+    t_float normalize_factor = 1.0f;
+    t_float scale;
+
+    // normalization according to inversed geometric series including a^0 based
+    // on given persistence:
+    //
+    //      a - 1
+    // s = -------
+    //     a^n - 1
+    //
+    if (x->normalize) {
+        normalize_factor = persistence - 1.0f;
+        normalize_factor /= pow(persistence, x->octaves) - 1.0f;
+    }
     static t_float (*noise_func[])(t_simplex_tilde *, t_float, t_float, t_float, t_float) = {
         snoise1, snoise2, snoise3, snoise4
     };
-
     for (int octave = 0; octave < x->octaves; octave++) {
-        scale = pow(2, octave);
-        coeff = pow(persistence, octave);
-        persistence_sum += fabs(coeff);
+        if (octave > 0)
+            coeff *= persistence;
+        scale = x->octave_factors[octave];
         result += noise_func[channel_count-1](x, pos[0] * scale, pos[1] * scale, pos[2] * scale, pos[3] * scale) * coeff;
     }
 
-    return x->normalize ? result / persistence_sum : result;
+    return result * normalize_factor;
 }
 
 static t_int *simplex_tilde_perform(t_int *w) {
@@ -426,8 +442,14 @@ void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
     dsp_add(simplex_tilde_perform, 6, x, (t_int)sp[0]->s_n, (t_int)sp[0]->s_nchans, sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec);
 }
 
+static inline void init_octave_factors(t_simplex_tilde *x){
+    for (int octave = 0; octave < x->octaves; octave++)
+        x->octave_factors[octave] = (t_float)(1 << octave);
+}
+
 static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
-    x->octaves = fastfloor(f);
+    x->octaves = fastfloor(min(MAX_OCTAVES, f));
+    init_octave_factors(x);
 }
 
 static void simplex_tilde_normalize(t_simplex_tilde *x, t_floatarg f){
@@ -443,6 +465,16 @@ static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *
         init_permutation_with_seed(x, atom_getfloat(av));
     else
         init_permutation(x);
+    (void)s;
+}
+
+static void simplex_tilde_coeffs(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
+    int i;
+    x->octaves = min(MAX_OCTAVES, ac);
+    for (i = 0; i < x->octaves; i++){
+        x->octave_factors[i] = atom_getfloat(av);
+        av++;
+    }
     (void)s;
 }
 
@@ -466,8 +498,10 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
             pd_error(x, "[simplex~]: invalid argument");
         ac--, av++;
     }
-    x->octaves = ac-- ? atom_getint(av++) : 1;
+    x->octaves = ac-- ? min(MAX_OCTAVES, atom_getint(av++)) : 1;
     persistence = ac>0 ? atom_getfloat(av) : PERSISTENCE;
+    init_octave_factors(x);
+
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
         pd_float((t_pd *)x->inlet_persistence, persistence);
     outlet_new(&x->x_obj, &s_signal);
@@ -484,6 +518,7 @@ void simplex_tilde_setup(void) {
     class_addmethod(simplex_tilde_class, nullfn, gensym("signal"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_GIMME, 0);
+    class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_coeffs, gensym("coeffs"), A_GIMME, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_octaves, gensym("octaves"), A_FLOAT, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_normalize, gensym("normalize"), A_FLOAT, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_persistence, gensym("persistence"), A_FLOAT, 0);
