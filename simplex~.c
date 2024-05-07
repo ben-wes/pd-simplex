@@ -5,9 +5,10 @@
 
 #define max(a,b) ( ((a) > (b)) ? (a) : (b) )
 #define min(a,b) ( ((a) < (b)) ? (a) : (b) )
+#define clamp(a,b,c) (min(max((a), (b)), (c)))
 #define fastfloor(x) ( ((int)(x)<=(x)) ? ((int)x) : (((int)x)-1) )
 
-#define PERSISTENCE 0.5f
+#define DEFAULT_PERSISTENCE 0.5f
 #define MAX_DIMENSIONS 4
 #define MAX_OCTAVES 24
 
@@ -448,7 +449,7 @@ static inline void init_octave_factors(t_simplex_tilde *x){
 }
 
 static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
-    x->octaves = fastfloor(min(MAX_OCTAVES, f));
+    x->octaves = clamp(fastfloor(f), 1, MAX_OCTAVES);
     init_octave_factors(x);
 }
 
@@ -470,7 +471,7 @@ static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *
 
 static void simplex_tilde_coeffs(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
     int i;
-    x->octaves = min(MAX_OCTAVES, ac);
+    x->octaves = clamp(ac, 1, MAX_OCTAVES);
     for (i = 0; i < x->octaves; i++){
         x->octave_factors[i] = atom_getfloat(av);
         av++;
@@ -498,8 +499,8 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
             pd_error(x, "[simplex~]: invalid argument");
         ac--, av++;
     }
-    x->octaves = ac-- ? min(MAX_OCTAVES, atom_getint(av++)) : 1;
-    persistence = ac>0 ? atom_getfloat(av) : PERSISTENCE;
+    x->octaves = ac-- ? clamp(atom_getint(av++), 1, MAX_OCTAVES) : 1;
+    persistence = ac>0 ? atom_getfloat(av) : DEFAULT_PERSISTENCE;
     init_octave_factors(x);
 
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
