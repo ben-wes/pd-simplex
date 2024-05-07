@@ -395,17 +395,16 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
     t_float coeff = 1.0f;
     t_float normalize_factor = 1.0f;
     t_float scale;
+    t_float abs_persistence = fabs(persistence);
 
-    // normalization according to inversed geometric series including a^0 based
-    // on given persistence:
-    //
-    //      a - 1
-    // s = -------
-    //     a^n - 1
-    //
+    // normalization according to (1 / geometric series including p^0) based on given persistence
     if (x->normalize) {
-        normalize_factor = persistence - 1.0f;
-        normalize_factor /= pow(persistence, x->octaves) - 1.0f;
+        if (abs_persistence == 1.0f) // avoid division by zero
+            normalize_factor = 1.0f / x->octaves;
+        else {
+            normalize_factor = abs_persistence - 1.0f;
+            normalize_factor /= pow(abs_persistence, x->octaves) - 1.0f;
+        }
     }
     static t_float (*noise_func[])(t_simplex_tilde *, t_float, t_float, t_float, t_float) = {
         snoise1, snoise2, snoise3, snoise4
@@ -449,7 +448,7 @@ static inline void init_octave_factors(t_simplex_tilde *x){
 }
 
 static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
-    x->octaves = clamp(fastfloor(f), 1, MAX_OCTAVES);
+    x->octaves = (int)clamp(f, 1, MAX_OCTAVES);
     init_octave_factors(x);
 }
 
@@ -488,6 +487,7 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     t_float persistence;
 
     x->normalize = 0;
+    x->octaves = 1;
     init_permutation(x);
     while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
@@ -499,8 +499,11 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
             pd_error(x, "[simplex~]: invalid argument");
         ac--, av++;
     }
-    x->octaves = ac-- ? clamp(atom_getint(av++), 1, MAX_OCTAVES) : 1;
-    persistence = ac>0 ? atom_getfloat(av) : DEFAULT_PERSISTENCE;
+    if (ac) {
+        x->octaves = clamp(atom_getint(av), 1, MAX_OCTAVES);
+        ac--, av++;
+    }
+    persistence = ac ? atom_getfloat(av) : DEFAULT_PERSISTENCE;
     init_octave_factors(x);
 
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
