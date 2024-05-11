@@ -439,7 +439,12 @@ static t_int *simplex_tilde_perform(t_int *w) {
 
 void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
     signal_setmultiout(&sp[2], 1);
-    dsp_add(simplex_tilde_perform, 6, x, (t_int)sp[0]->s_n, (t_int)sp[0]->s_nchans, sp[0]->s_vec, sp[1]->s_vec, sp[2]->s_vec);
+    dsp_add(simplex_tilde_perform, 6, x,
+        sp[0]->s_n,
+        sp[0]->s_nchans,
+        sp[0]->s_vec,
+        sp[1]->s_vec,
+        sp[2]->s_vec);
 }
 
 static inline void init_octave_factors(t_simplex_tilde *x){
