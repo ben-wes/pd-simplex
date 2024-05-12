@@ -76,10 +76,10 @@
 #X obj 384 474 tabread \$0-data-x;
 #X obj 367 546 t b f;
 #X obj 367 566 f;
-#X text 411 556 y <--> x;
+#X text 423 556 y <--> x;
 #X obj 367 283 t b b;
-#X obj 367 522 rotatex, f 17;
-#X text 480 522 rotate y (order of input is y x z);
+#X obj 367 522 rotatex, f 9;
+#X text 429 522 rotate y (order of input is y x z);
 #X obj 367 592 rotatex -0.6;
 #X text 449 592 rotate x (tilt to view from slightly above);
 #X connect 0 0 56 0;
