@@ -122,8 +122,8 @@ static void init_permutation(t_simplex_tilde *x) {
 }
 
 // 1D simplex noise
-static t_float snoise1(t_simplex_tilde *x, t_float *pos, t_float scale) {
-    t_float x_in = scale * *pos;
+static t_float snoise1(t_simplex_tilde *x, t_float *pos, t_float sc) {
+    t_float x_in = sc*pos[0];
 
     int i0 = fastfloor(x_in);
     int i1 = i0 + 1;
@@ -143,9 +143,8 @@ static t_float snoise1(t_simplex_tilde *x, t_float *pos, t_float scale) {
 }
 
 // 2D simplex noise
-static t_float snoise2(t_simplex_tilde *x, t_float *pos, t_float scale) {
-    t_float x_in = scale * *pos++;
-    t_float y_in = scale * *pos;
+static t_float snoise2(t_simplex_tilde *x, t_float *pos, t_float sc) {
+    t_float x_in = sc*pos[0], y_in = sc*pos[1];
 
     t_float n0, n1, n2; // Noise contributions from the three corners
 
@@ -199,10 +198,8 @@ static t_float snoise2(t_simplex_tilde *x, t_float *pos, t_float scale) {
 }
 
 // 3D simplex noise
-static t_float snoise3(t_simplex_tilde *x, t_float *pos, t_float scale) {
-    t_float x_in = scale * *pos++;
-    t_float y_in = scale * *pos++;
-    t_float z_in = scale * *pos;
+static t_float snoise3(t_simplex_tilde *x, t_float *pos, t_float sc) {
+    t_float x_in = sc*pos[0], y_in = sc*pos[1], z_in = sc*pos[2];
 
     t_float n0, n1, n2, n3; // Noise contributions from the four corners
 
@@ -277,11 +274,8 @@ static t_float snoise3(t_simplex_tilde *x, t_float *pos, t_float scale) {
 
 
 // 4D simplex noise
-static t_float snoise4(t_simplex_tilde *x, t_float *pos, t_float scale) {
-    t_float x_in = scale * *pos++;
-    t_float y_in = scale * *pos++;
-    t_float z_in = scale * *pos++;
-    t_float w_in = scale * *pos;
+static t_float snoise4(t_simplex_tilde *x, t_float *pos, t_float sc) {
+    t_float x_in = sc*pos[0], y_in = sc*pos[1], z_in = sc*pos[2], w_in = sc*pos[3];
 
     t_float n0, n1, n2, n3, n4; // Noise contributions from the five corners
 
