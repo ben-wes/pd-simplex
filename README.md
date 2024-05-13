@@ -1,5 +1,5 @@
 # simplex~
-Pure Data (Pd) external for signal rate simplex noise with 1d, 2d, 3d and 4d multichannel input
+Pure Data (Pd) external for signal rate simplex noise sampling with 1d, 2d, 3d and 4d multichannel input
 
 The current version's noise implementation is based on https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c.
 
