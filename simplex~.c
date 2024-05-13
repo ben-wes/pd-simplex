@@ -93,11 +93,6 @@ static const unsigned char simplex3[8][6] = {
     {1,0,0,1,1,0}  // XYZ 7: 4 2 1
 };
 
-inline int fastrand(int seed) {
-    seed = (214013*seed+2531011);
-    return (seed>>16)&0xFF;
-}
-
 static void shuffle(int *array, int n) {
     for (int i = n - 1; i > 0; i--) {
         int j = rand() % (i + 1);
