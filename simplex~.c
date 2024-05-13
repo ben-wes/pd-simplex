@@ -102,7 +102,7 @@ static void shuffle(int *array, int n) {
     }
 }
 
-static void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
+static void init_permutation_with_seed(int *perm, unsigned int seed) {
     int basePermutation[256];
     for (int i = 0; i < 256; i++) {
         basePermutation[i] = i;
@@ -110,15 +110,15 @@ static void init_permutation_with_seed(t_simplex_tilde *x, unsigned int seed) {
     srand(seed);
     shuffle(basePermutation, 256);
     for (int i = 0; i < 256; i++) {
-        x->perm[i] = basePermutation[i];
-        x->perm[i + 256] = basePermutation[i];
+        perm[i] = basePermutation[i];
+        perm[i + 256] = basePermutation[i];
     }
 }
 
-static void init_permutation(t_simplex_tilde *x) {
+static void init_permutation(int *perm) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    init_permutation_with_seed(x, (unsigned int)ts.tv_nsec);
+    init_permutation_with_seed(perm, (unsigned int)ts.tv_nsec);
 }
 
 // 1D simplex noise
@@ -473,9 +473,9 @@ static void simplex_tilde_normalize(t_simplex_tilde *x, t_symbol *s, int ac, t_a
 
 static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
     if (ac)
-        init_permutation_with_seed(x, atom_getfloat(av));
+        init_permutation_with_seed(x->perm, atom_getfloat(av));
     else
-        init_permutation(x);
+        init_permutation(x->perm);
     (void)s;
 }
 
@@ -499,13 +499,13 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
 
     x->normalize = 0;
     x->octaves = 1;
-    init_permutation(x);
+    init_permutation(x->perm);
     while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
             x->normalize = 1;
         else if (atom_getsymbol(av) == gensym("-s")) {
             ac--, av++;
-            init_permutation_with_seed(x, (unsigned int)atom_getint(av));
+            init_permutation_with_seed(x->perm, (unsigned int)atom_getint(av));
         } else
             pd_error(x, "[simplex~]: invalid argument");
         ac--, av++;
