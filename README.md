@@ -5,8 +5,8 @@ The current version's noise implementation is based on https://github.com/stegu/
 
 ![simplex~-help.pd screenshot](simplex%7E-help.pd.png)
 
-## Build / Installation
-Compilation requires [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/) (included as submodule, requiring the `--recursive` parameter below).
+## Build and Installation Instructions
+To compile and install, follow these steps. Note that [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/) is included as submodule, requiring the `--recursive` parameter.
 ~~~
 git clone --recursive https://github.com/ben-wes/pd-simplex.git
 cd pd-simplex
@@ -14,30 +14,30 @@ make install
 ~~~
 
 ## Usage
-### Inlets / outlets
-* 1st inlet expects a multichannel signal with up to 4 dimensions for the noise sampling position. The noise algorithm (and therefore its performance) is selected according to the number of channels.
-* 2nd inlet can be used to control the persistence value with a signal (or float inputs).
-* outlet outputs the sampled noise value at signal rate.
+### Inlets and Outlets
+* **1st inlet:** expects a multichannel signal with up to 4 dimensions for the noise sampling position (the noise algorithm, and hence its performance, is determined by the number of channels)
+* **2nd inlet:** can be used to control the persistence value with a signal or float inputs
+* **outlet:** outputs the sampled noise value at signal rate
 
-### Creation arguments
+### Creation Arguments
 #### Optional flags
 * `-n` flag activates normalization of the octaves' sum to keep values in the [-1..1] range
 * `-s <int>` flag initializes the noise's permutation table with a given seed
 
 #### Optional numerical arguments (must be written after the flags)
-* first arg sets the number of octaves (defaults to `1`, max. is `24`)
-* second arg sets initial persistence (defaults to `0.5`) 
+* **first arg** sets the number of octaves (defaults to `1`, max. is `24`)
+* **second arg** sets initial persistence (defaults to `0.5`) 
 
 ### Messages
 * `[seed <int>(` generates different (deterministic) permutation tables for the simplex function
 * `[normalize 0/1(` (de)activates normalization (off by default)
 * `[octaves <int>(` dynamically changes the number of octaves
-* `[persistence <float>(` changes persistence (while no signal is connected)
+* `[persistence <float>(` sets persistence (while no signal is connected)
 * `[coeffs <float> <float> ... <float>(` let's you customize the octave scaling (default is `1, 2, 4, ...`) 
 
 ---
 
-## Additional information
+## Additional Information
 ### Octaves
 In case of more than 1 octave, additional noise octaves get sampled, i.e. downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the sampling coordinate with `2^(octave-1)` - for example:
 * input `(1, -3)` samples from `2*(1, -3) = (2,  -6)` for 2nd octave
@@ -48,7 +48,8 @@ The persistence value determines the influence of successive octaves on the fina
 * persistence of `0.5` yields octaves' amplitudes `1, 0.5, 0.25, 0.125, 0.0625, ...`
 * persistence of `0.9` yields octaves' amplitudes `1, 0.9, 0.81, 0.729, 0.6561, ...`
 
-If normalization is activated (via creation argument or message), the sum of all octaves' amplitudes gets normalized to 1.
+### Normalization
+If normalization is activated (via creation argument or message), the sum of all octaves' amplitudes is normalized to 1.
 
 ---
 
