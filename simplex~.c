@@ -36,7 +36,7 @@ typedef struct _simplex_tilde {
     int normalize;
     int octaves;
     t_float octave_factors[MAX_OCTAVES];
-    int perm[512];
+    unsigned char perm[512];
 } t_simplex_tilde;
 
 // simplex noises code from https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c
@@ -93,36 +93,36 @@ static const unsigned char simplex3[8][6] = {
     {1,0,0,1,1,0}  // XYZ 7: 4 2 1
 };
 
-static void shuffle(int *array, int n) {
-    for (int i = n - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
-        int temp = array[i];
-        array[i] = array[j];
-        array[j] = temp;
-    }
-}
-
-static void init_permutation_with_seed(int *perm, unsigned int seed) {
-    int basePermutation[256];
-    for (int i = 0; i < 256; i++) {
+static void init_permutation_with_seed(unsigned char *perm, unsigned int seed) {
+    int i;
+    unsigned char basePermutation[256];
+    // create values
+    for (i = 0; i < 256; i++) {
         basePermutation[i] = i;
     }
     srand(seed);
-    shuffle(basePermutation, 256);
-    for (int i = 0; i < 256; i++) {
+    // shuffle
+    for (i = 255; i > 0; i--) {
+        int j = rand() % (i + 1);
+        unsigned char temp = basePermutation[i];
+        basePermutation[i] = basePermutation[j];
+        basePermutation[j] = temp;
+    }
+    // copy to index 256..511
+    for (i = 0; i < 256; i++) {
         perm[i] = basePermutation[i];
         perm[i + 256] = basePermutation[i];
     }
 }
 
-static void init_permutation(int *perm) {
+static void init_permutation(unsigned char *perm) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     init_permutation_with_seed(perm, (unsigned int)ts.tv_nsec);
 }
 
 // 1D simplex noise
-static t_float snoise1(t_float *pos, t_float sc, int *perm) {
+static t_float snoise1(t_float *pos, t_float sc, unsigned char *perm) {
     t_float x_in = sc*pos[0];
 
     int i0 = fastfloor(x_in);
@@ -143,7 +143,7 @@ static t_float snoise1(t_float *pos, t_float sc, int *perm) {
 }
 
 // 2D simplex noise
-static t_float snoise2(t_float *pos, t_float sc, int *perm) {
+static t_float snoise2(t_float *pos, t_float sc, unsigned char *perm) {
     t_float x_in = sc*pos[0], y_in = sc*pos[1];
 
     t_float n0, n1, n2; // Noise contributions from the three corners
@@ -198,7 +198,7 @@ static t_float snoise2(t_float *pos, t_float sc, int *perm) {
 }
 
 // 3D simplex noise
-static t_float snoise3(t_float *pos, t_float sc, int *perm) {
+static t_float snoise3(t_float *pos, t_float sc, unsigned char  *perm) {
     t_float x_in = sc*pos[0], y_in = sc*pos[1], z_in = sc*pos[2];
 
     t_float n0, n1, n2, n3; // Noise contributions from the four corners
@@ -274,7 +274,7 @@ static t_float snoise3(t_float *pos, t_float sc, int *perm) {
 
 
 // 4D simplex noise
-static t_float snoise4(t_float *pos, t_float sc, int *perm) {
+static t_float snoise4(t_float *pos, t_float sc, unsigned char  *perm) {
     t_float x_in = sc*pos[0], y_in = sc*pos[1], z_in = sc*pos[2], w_in = sc*pos[3];
 
     t_float n0, n1, n2, n3, n4; // Noise contributions from the five corners
@@ -411,7 +411,7 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
             normalize_factor /= pow(abs_persistence, x->octaves) - 1.0f;
         }
     }
-    static t_float (*noise_func[])(t_float *, t_float, int *) = {
+    static t_float (*noise_func[])(t_float *, t_float, unsigned char *) = {
         snoise1, snoise2, snoise3, snoise4
     };
     for (int octave = 0; octave < x->octaves; octave++) {
