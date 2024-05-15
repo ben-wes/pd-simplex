@@ -135,7 +135,7 @@ static void init_permutation(unsigned char *perm) {
 }
 
 // 1D simplex noise
-static t_float snoise1(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+static t_float snoise1(t_float *pos, t_float sc, t_float coeff, unsigned char *perm, t_float *derivatives) {
     t_float x = sc * pos[0];
 
     int i0 = fastfloor(x);
@@ -157,18 +157,20 @@ static t_float snoise1(t_float *pos, t_float sc, unsigned char *perm, t_float *d
     t41 = t21 * t21;
     grad1(perm[i1 & 0xff], &gx1);
     n1 = t41 * gx1 * x1;
-    if (d) {
-        d[0] = t20 * t0 * gx0 * x20;
-        d[0] += t21 * t1 * gx1 * x21;
-        d[0] *= -8.0f;
-        d[0] += t40 * gx0 + t41 * gx1;
-        d[0] *= 0.25f;
+    if (derivatives) {
+        t_float d;
+        d = t20 * t0 * gx0 * x20;
+        d += t21 * t1 * gx1 * x21;
+        d *= -8.0f;
+        d += t40 * gx0 + t41 * gx1;
+        d *= 0.25f;
+        derivatives[0] += coeff * d;
     }
-    return 0.25f * (n0 + n1);
+    return coeff * 0.25f * (n0 + n1);
 }
 
 // 2D simplex noise
-static t_float snoise2(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+static t_float snoise2(t_float *pos, t_float sc, t_float coeff, unsigned char *perm, t_float *derivatives) {
     t_float x = sc * pos[0], y = sc * pos[1];
 
     t_float n0, n1, n2;
@@ -220,7 +222,8 @@ static t_float snoise2(t_float *pos, t_float sc, unsigned char *perm, t_float *d
         n2 = t42 * (gx2 * x2 + gy2 * y2);
     }
     noise = 40.0f * (n0 + n1 + n2);
-    if (d) {
+    if (derivatives) {
+        t_float d[2];
         temp0 = t20 * t0 * (gx0 * x0 + gy0 * y0);
         d[0] = temp0 * x0;
         d[1] = temp0 * y0;
@@ -236,12 +239,14 @@ static t_float snoise2(t_float *pos, t_float sc, unsigned char *perm, t_float *d
         d[1] += t40 * gy0 + t41 * gy1 + t42 * gy2;
         d[0] *= 40.0f;
         d[1] *= 40.0f;
+        derivatives[0] += coeff * d[0];
+        derivatives[1] += coeff * d[1];
     }
-    return noise;
+    return coeff * noise;
 }
 
 // 3D simplex noise
-static t_float snoise3(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+static t_float snoise3(t_float *pos, t_float sc, t_float coeff, unsigned char *perm, t_float *derivatives) {
     t_float x = sc * pos[0], y = sc * pos[1], z = sc * pos[2];
 
     t_float n0, n1, n2, n3;
@@ -329,7 +334,8 @@ static t_float snoise3(t_float *pos, t_float sc, unsigned char *perm, t_float *d
         n3 = t43 * (gx3 * x3 + gy3 * y3 + gz3 * z3);
     }
     noise = 72.0f * (n0 + n1 + n2 + n3);
-    if (d) {
+    if (derivatives) {
+        t_float d[3];
         temp0 = t20 * t0 * (gx0 * x0 + gy0 * y0 + gz0 * z0);
         d[0] = temp0 * x0;
         d[1] = temp0 * y0;
@@ -355,12 +361,15 @@ static t_float snoise3(t_float *pos, t_float sc, unsigned char *perm, t_float *d
         d[0] *= 72.0f;
         d[1] *= 72.0f;
         d[2] *= 72.0f;
+        derivatives[0] += coeff * d[0];
+        derivatives[1] += coeff * d[1];
+        derivatives[2] += coeff * d[2];
     }
-    return noise;
+    return coeff * noise;
 }
 
 // 4D simplex noise
-static t_float snoise4(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+static t_float snoise4(t_float *pos, t_float sc, t_float coeff, unsigned char *perm, t_float *derivatives) {
     t_float x = sc * pos[0], y = sc * pos[1], z = sc * pos[2], w = sc * pos[3];
 
     t_float n0, n1, n2, n3, n4;
@@ -473,7 +482,8 @@ static t_float snoise4(t_float *pos, t_float sc, unsigned char *perm, t_float *d
         n4 = t44 * (gx4 * x4 + gy4 * y4 + gz4 * z4 + gw4 * w4);
     }
     noise = 62.0f * (n0 + n1 + n2 + n3 + n4);
-    if (d) {
+    if (derivatives) {
+        t_float d[4];
         temp0 = t20 * t0 * (gx0 * x0 + gy0 * y0 + gz0 * z0 + gw0 * w0);
         d[0] = temp0 * x0;
         d[1] = temp0 * y0;
@@ -507,12 +517,16 @@ static t_float snoise4(t_float *pos, t_float sc, unsigned char *perm, t_float *d
         d[1] += t40 * gy0 + t41 * gy1 + t42 * gy2 + t43 * gy3 + t44 * gy4;
         d[2] += t40 * gz0 + t41 * gz1 + t42 * gz2 + t43 * gz3 + t44 * gz4;
         d[3] += t40 * gw0 + t41 * gw1 + t42 * gw2 + t43 * gw3 + t44 * gw4;
-        d[0] *= 62.0f;
-        d[1] *= 62.0f;
-        d[2] *= 62.0f;
-        d[3] *= 62.0f;
+        d[0] *= coeff * 62.0f;
+        d[1] *= coeff * 62.0f;
+        d[2] *= coeff * 62.0f;
+        d[3] *= coeff * 62.0f;
+        derivatives[0] += coeff * d[0];
+        derivatives[1] += coeff * d[1];
+        derivatives[2] += coeff * d[2];
+        derivatives[3] += coeff * d[3];
     }
-    return noise;
+    return coeff * noise;
 }
 
 static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float persistence, int func_index, t_float *derivatives) {
@@ -531,13 +545,17 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
             normalize_factor /= pow(abs_persistence, x->octaves) - 1.0f;
         }
     }
-    static t_float (*noise_func[])(t_float *, t_float, unsigned char *, t_float *) = {
+    static t_float (*noise_func[])(t_float *, t_float, t_float, unsigned char *, t_float *) = {
         snoise1, snoise2, snoise3, snoise4
     };
+    if (derivatives) {
+        for (int i = 0; i < MAX_DIMENSIONS; i++)
+            derivatives[i] = 0.0f;
+    }
     for (int octave = 0; octave < x->octaves; octave++) {
         if (octave) coeff *= persistence; // first octave is not attenuated
         scale = x->octave_factors[octave];
-        result += coeff * noise_func[func_index](pos, scale, x->perm, derivatives);
+        result += noise_func[func_index](pos, scale, coeff, x->perm, derivatives);
     }
     return result * normalize_factor;
 }
