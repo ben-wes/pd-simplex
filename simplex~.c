@@ -1,3 +1,6 @@
+// external created by Ben Wesch, 2024
+// simplex algorithms from https://github.com/stegu/perlin-noise/blob/master/src/sdnoise1234.c
+
 #include "m_pd.h"
 #include <math.h>
 #include <time.h>
@@ -13,7 +16,6 @@
 #define MAX_OCTAVES 24
 
 #define F2   0.36602540378f // 0.5*(sqrt(3.0)-1.0);
-
 #define G2   0.2113248654f  // (3.0-sqrt(3.0))/6.0;
 #define G2_2 0.42264973081f
 
@@ -33,82 +35,93 @@ static t_class *simplex_tilde_class;
 typedef struct _simplex_tilde {
     t_object x_obj;
     t_inlet *inlet_persistence;
+    t_outlet *outlet_derivatives;
+    t_sample **derivative_vector;
+    t_float *derivatives;
+    t_float octave_factors[MAX_OCTAVES];
+    int compute_derivatives;
     int normalize;
     int octaves;
-    t_float octave_factors[MAX_OCTAVES];
     unsigned char perm[512];
 } t_simplex_tilde;
 
-// simplex noises code from https://github.com/stegu/perlin-noise/blob/master/src/simplexnoise1234.c
-
-static const signed char grad[] = {1,2,3,4,5,6,7,8,-1,-2,-3,-4,-5,-6,-7,-8};
-
-static inline t_float grad1( int hash, t_float x ) {
-    return grad[hash & 15] * x;
-}
-
-static inline t_float grad2( int hash, t_float x, t_float y ) {
-    int h = hash & 7;      // Convert low 3 bits of hash code
-    t_float u = h<4 ? x : y;  // into 8 simple gradient directions,
-    t_float v = h<4 ? y : x;  // and compute the dot product with (x,y).
-    return ((h&1)? -u : u) + ((h&2)? -2.0f*v : 2.0f*v);
-}
-
-static inline t_float grad3( int hash, t_float x, t_float y , t_float z ) {
-    int h = hash & 15;     // Convert low 4 bits of hash code into 12 simple
-    t_float u = h<8 ? x : y; // gradient directions, and compute dot product.
-    t_float v = h<4 ? y : h==12||h==14 ? x : z; // Fix repeats at h = 12 to 15
-    return ((h&1)? -u : u) + ((h&2)? -v : v);
-}
-
-static inline t_float grad4( int hash, t_float x, t_float y, t_float z, t_float t ) {
-    int h = hash & 31;      // Convert low 5 bits of hash code into 32 simple
-    t_float u = h<24 ? x : y; // gradient directions, and compute dot product.
-    t_float v = h<16 ? y : z;
-    t_float w = h<8 ? z : t;
-    return ((h&1)? -u : u) + ((h&2)? -v : v) + ((h&4)? -w : w);
-}
-
-// A lookup table to traverse the simplex around a given point in 4D.
-static const unsigned char simplex4[64][4] = {
-    {0,1,2,3}, {0,1,3,2}, {0,0,0,0}, {0,2,3,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {1,2,3,0},
-    {0,2,1,3}, {0,0,0,0}, {0,3,1,2}, {0,3,2,1}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {1,3,2,0},
-    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    {1,2,0,3}, {0,0,0,0}, {1,3,0,2}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {2,3,0,1}, {2,3,1,0},
-    {1,0,2,3}, {1,0,3,2}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {2,0,3,1}, {0,0,0,0}, {2,1,3,0},
-    {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0},
-    {2,0,1,3}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {3,0,1,2}, {3,0,2,1}, {0,0,0,0}, {3,1,2,0},
-    {2,1,0,3}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {3,1,0,2}, {0,0,0,0}, {3,2,0,1}, {3,2,1,0}
+static float grad2lut[8][2] = {
+  { -1.0f, -1.0f }, { 1.0f, 0.0f } , { -1.0f, 0.0f } , { 1.0f, 1.0f } ,
+  { -1.0f, 1.0f } , { 0.0f, -1.0f } , { 0.0f, 1.0f } , { 1.0f, -1.0f }
 };
 
-static const unsigned char simplex3[8][6] = {
-    // The entries correspond to (i1, j1, k1, i2, j2, k2) for each condition
-    {0,0,1,0,1,1}, // ZYX 0
-    {0,0,0,0,0,0},
-    {0,1,0,0,1,1}, // YZX 2:   2
-    {0,1,0,1,1,0}, // YXZ 3:   2 1
-    {0,0,1,1,0,1}, // ZXY 4: 4
-    {1,0,0,1,0,1}, // XZY 5: 4   1
-    {0,0,0,0,0,0},
-    {1,0,0,1,1,0}  // XYZ 7: 4 2 1
+static float grad3lut[16][3] = {
+  { 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 
+  { -1.0f, 0.0f, 1.0f }, { 0.0f, -1.0f, 1.0f },
+  { 1.0f, 0.0f, -1.0f }, { 0.0f, 1.0f, -1.0f },
+  { -1.0f, 0.0f, -1.0f }, { 0.0f, -1.0f, -1.0f },
+  { 1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f },
+  { -1.0f, 1.0f, 0.0f }, { -1.0f, -1.0f, 0.0f },
+  { 1.0f, 0.0f, 1.0f }, { -1.0f, 0.0f, 1.0f }, 
+  { 0.0f, 1.0f, -1.0f }, { 0.0f, -1.0f, -1.0f }
 };
+
+static float grad4lut[32][4] = {
+  { 0.0f, 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, -1.0f, -1.0f },
+  { 0.0f, -1.0f, 1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f, -1.0f }, { 0.0f, -1.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, -1.0f, -1.0f },
+  { 1.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, -1.0f, -1.0f },
+  { -1.0f, 0.0f, 1.0f, 1.0f }, { -1.0f, 0.0f, 1.0f, -1.0f }, { -1.0f, 0.0f, -1.0f, 1.0f }, { -1.0f, 0.0f, -1.0f, -1.0f },
+  { 1.0f, 1.0f, 0.0f, 1.0f }, { 1.0f, 1.0f, 0.0f, -1.0f }, { 1.0f, -1.0f, 0.0f, 1.0f }, { 1.0f, -1.0f, 0.0f, -1.0f },
+  { -1.0f, 1.0f, 0.0f, 1.0f }, { -1.0f, 1.0f, 0.0f, -1.0f }, { -1.0f, -1.0f, 0.0f, 1.0f }, { -1.0f, -1.0f, 0.0f, -1.0f },
+  { 1.0f, 1.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, -1.0f, 0.0f }, { 1.0f, -1.0f, 1.0f, 0.0f }, { 1.0f, -1.0f, -1.0f, 0.0f },
+  { -1.0f, 1.0f, 1.0f, 0.0f }, { -1.0f, 1.0f, -1.0f, 0.0f }, { -1.0f, -1.0f, 1.0f, 0.0f }, { -1.0f, -1.0f, -1.0f, 0.0f }
+};
+
+static unsigned char simplex[64][4] = {
+  {0,1,2,3},{0,1,3,2},{0,0,0,0},{0,2,3,1},{0,0,0,0},{0,0,0,0},{0,0,0,0},{1,2,3,0},
+  {0,2,1,3},{0,0,0,0},{0,3,1,2},{0,3,2,1},{0,0,0,0},{0,0,0,0},{0,0,0,0},{1,3,2,0},
+  {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
+  {1,2,0,3},{0,0,0,0},{1,3,0,2},{0,0,0,0},{0,0,0,0},{0,0,0,0},{2,3,0,1},{2,3,1,0},
+  {1,0,2,3},{1,0,3,2},{0,0,0,0},{0,0,0,0},{0,0,0,0},{2,0,3,1},{0,0,0,0},{2,1,3,0},
+  {0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},{0,0,0,0},
+  {2,0,1,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,0,1,2},{3,0,2,1},{0,0,0,0},{3,1,2,0},
+  {2,1,0,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,1,0,2},{0,0,0,0},{3,2,0,1},{3,2,1,0}};
+
+static void grad1(int hash, float *gx) {
+    int h = hash & 15;
+    *gx = 1.0f + (h & 7); 
+    if (h & 8) *gx = -(*gx); 
+}
+
+static void grad2(int hash, float *gx, float *gy) {
+    int h = hash & 7;
+    *gx = grad2lut[h][0];
+    *gy = grad2lut[h][1];
+}
+
+static void grad3(int hash, float *gx, float *gy, float *gz) {
+    int h = hash & 15;
+    *gx = grad3lut[h][0];
+    *gy = grad3lut[h][1];
+    *gz = grad3lut[h][2];
+}
+
+static void grad4(int hash, float *gx, float *gy, float *gz, float *gw) {
+    int h = hash & 31;
+    *gx = grad4lut[h][0];
+    *gy = grad4lut[h][1];
+    *gz = grad4lut[h][2];
+    *gw = grad4lut[h][3];
+}
 
 static void init_permutation_with_seed(unsigned char *perm, unsigned int seed) {
     int i;
     unsigned char basePermutation[256];
-    // create values
     for (i = 0; i < 256; i++) {
         basePermutation[i] = i;
     }
     srand(seed);
-    // shuffle
     for (i = 255; i > 0; i--) {
         int j = rand() % (i + 1);
         unsigned char temp = basePermutation[i];
         basePermutation[i] = basePermutation[j];
         basePermutation[j] = temp;
     }
-    // copy to index 256..511
     for (i = 0; i < 256; i++) {
         perm[i] = basePermutation[i];
         perm[i + 256] = basePermutation[i];
@@ -122,280 +135,387 @@ static void init_permutation(unsigned char *perm) {
 }
 
 // 1D simplex noise
-static t_float snoise1(t_float *pos, t_float sc, unsigned char *perm) {
-    t_float x_in = sc*pos[0];
+static t_float snoise1(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+    t_float x = sc * pos[0];
 
-    int i0 = fastfloor(x_in);
+    int i0 = fastfloor(x);
     int i1 = i0 + 1;
-    t_float x0 = x_in - i0;
-    t_float x1 = x0 - 1.0f;
-
-    t_float n0, n1;
-
-    t_float t0 = 1.0f - x0*x0;
-    t0 *= t0;
-    n0 = t0 * t0 * grad1(perm[i0 & 0xff], x0);
-
-    t_float t1 = 1.0f - x1*x1;
-    t1 *= t1;
-    n1 = t1 * t1 * grad1(perm[i1 & 0xff], x1);
-    return 0.395 * (n0 + n1);
+    float x0 = x - i0;
+    float x1 = x0 - 1.0f;
+    float gx0, gx1;
+    float n0, n1;
+    float t1, t20, t40, t21, t41, x21;
+    float x20 = x0 * x0;
+    float t0 = 1.0f - x20;
+    t20 = t0 * t0;
+    t40 = t20 * t20;
+    grad1(perm[i0 & 0xff], &gx0);
+    n0 = t40 * gx0 * x0;
+    x21 = x1 * x1;
+    t1 = 1.0f - x21;
+    t21 = t1 * t1;
+    t41 = t21 * t21;
+    grad1(perm[i1 & 0xff], &gx1);
+    n1 = t41 * gx1 * x1;
+    if (d) {
+        d[0] = t20 * t0 * gx0 * x20;
+        d[0] += t21 * t1 * gx1 * x21;
+        d[0] *= -8.0f;
+        d[0] += t40 * gx0 + t41 * gx1;
+        d[0] *= 0.25f;
+    }
+    return 0.25f * (n0 + n1);
 }
 
 // 2D simplex noise
-static t_float snoise2(t_float *pos, t_float sc, unsigned char *perm) {
-    t_float x_in = sc*pos[0], y_in = sc*pos[1];
+static t_float snoise2(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+    t_float x = sc * pos[0], y = sc * pos[1];
 
-    t_float n0, n1, n2; // Noise contributions from the three corners
-
-    // Skew the input space to determine which simplex cell we're in
-    t_float s = (x_in+y_in)*F2; // Hairy factor for 2D
-    t_float xs = x_in + s;
-    t_float ys = y_in + s;
-    int i = fastfloor(xs);
-    int j = fastfloor(ys);
-
-    t_float t = (float)(i+j)*G2;
-    t_float X0 = i-t; // Unskew the cell origin back to (x,y) space
-    t_float Y0 = j-t;
-    t_float x0 = x_in-X0; // The x,y distances from the cell origin
-    t_float y0 = y_in-Y0;
-
-    // Offsets for second (middle) corner of simplex in (i,j) coords
-    int i1 = x0>y0;
-    int j1 = !i1;
-    // lower triangle, XY order: (0,0)->(1,0)->(1,1)
-    // upper triangle, YX order: (0,0)->(0,1)->(1,1)
-
-    t_float x1 = x0 - i1 + G2; // Offsets for middle corner in (x,y) unskewed coords
-    t_float y1 = y0 - j1 + G2;
-    t_float x2 = x0 - 1.0f + G2_2; // Offsets for last corner in (x,y) unskewed coords
-    t_float y2 = y0 - 1.0f + G2_2;
-
-    // Wrap the integer indices at 256, to avoid indexing perm[] out of bounds
-    int ii = i & 0xff;
-    int jj = j & 0xff;
-
-    // Calculate the contribution from the three corners
-    t_float t0 = 0.5f - x0*x0-y0*y0;
-    t0 = max(t0, 0.0f);
-    t0 *= t0;
-    n0 = t0 * t0 * grad2(perm[ii+perm[jj]], x0, y0); 
-
-    t_float t1 = 0.5f - x1*x1-y1*y1;
-    t1 = max(t1, 0.0f);
-    t1 *= t1;
-    n1 = t1 * t1 * grad2(perm[ii+i1+perm[jj+j1]], x1, y1);
-
-    t_float t2 = 0.5f - x2*x2-y2*y2;
-    t2 = max(t2, 0.0f);
-    t2 *= t2;
-    n2 = t2 * t2 * grad2(perm[ii+1+perm[jj+1]], x2, y2);
-
-    // Add contributions from each corner to get the final noise value.
-    // The result is scaled to return values in the interval [-1,1].
-    return 40.0f * (n0 + n1 + n2); // TODO: The scale factor is preliminary!
+    t_float n0, n1, n2;
+    t_float gx0, gy0, gx1, gy1, gx2, gy2;
+    t_float t0, t1, t2, x1, x2, y1, y2;
+    t_float t20, t40, t21, t41, t22, t42;
+    t_float temp0, temp1, temp2, noise;
+    t_float s = (x + y) * F2;
+    t_float xs = x + s;
+    t_float ys = y + s;
+    int ii, i = fastfloor(xs);
+    int jj, j = fastfloor(ys);
+    t_float t = (t_float)(i + j) * G2;
+    t_float X0 = i - t;
+    t_float Y0 = j - t;
+    t_float x0 = x - X0;
+    t_float y0 = y - Y0;
+    int i1, j1;
+    if (x0 > y0) { i1 = 1; j1 = 0; }
+    else { i1 = 0; j1 = 1; }
+    x1 = x0 - i1 + G2;
+    y1 = y0 - j1 + G2;
+    x2 = x0 - 1.0f + G2_2;
+    y2 = y0 - 1.0f + G2_2;
+    ii = i & 0xff;
+    jj = j & 0xff;
+    t0 = 0.5f - x0 * x0 - y0 * y0;
+    if (t0 < 0.0f) t40 = t20 = t0 = n0 = gx0 = gy0 = 0.0f;
+    else {
+        grad2(perm[ii + perm[jj]], &gx0, &gy0);
+        t20 = t0 * t0;
+        t40 = t20 * t20;
+        n0 = t40 * (gx0 * x0 + gy0 * y0);
+    }
+    t1 = 0.5f - x1 * x1 - y1 * y1;
+    if (t1 < 0.0f) t21 = t41 = t1 = n1 = gx1 = gy1 = 0.0f;
+    else {
+        grad2(perm[ii + i1 + perm[jj + j1]], &gx1, &gy1);
+        t21 = t1 * t1;
+        t41 = t21 * t21;
+        n1 = t41 * (gx1 * x1 + gy1 * y1);
+    }
+    t2 = 0.5f - x2 * x2 - y2 * y2;
+    if (t2 < 0.0f) t42 = t22 = t2 = n2 = gx2 = gy2 = 0.0f;
+    else {
+        grad2(perm[ii + 1 + perm[jj + 1]], &gx2, &gy2);
+        t22 = t2 * t2;
+        t42 = t22 * t22;
+        n2 = t42 * (gx2 * x2 + gy2 * y2);
+    }
+    noise = 40.0f * (n0 + n1 + n2);
+    if (d) {
+        temp0 = t20 * t0 * (gx0 * x0 + gy0 * y0);
+        d[0] = temp0 * x0;
+        d[1] = temp0 * y0;
+        temp1 = t21 * t1 * (gx1 * x1 + gy1 * y1);
+        d[0] += temp1 * x1;
+        d[1] += temp1 * y1;
+        temp2 = t22 * t2 * (gx2 * x2 + gy2 * y2);
+        d[0] += temp2 * x2;
+        d[1] += temp2 * y2;
+        d[0] *= -8.0f;
+        d[1] *= -8.0f;
+        d[0] += t40 * gx0 + t41 * gx1 + t42 * gx2;
+        d[1] += t40 * gy0 + t41 * gy1 + t42 * gy2;
+        d[0] *= 40.0f;
+        d[1] *= 40.0f;
+    }
+    return noise;
 }
 
 // 3D simplex noise
-static t_float snoise3(t_float *pos, t_float sc, unsigned char  *perm) {
-    t_float x_in = sc*pos[0], y_in = sc*pos[1], z_in = sc*pos[2];
+static t_float snoise3(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+    t_float x = sc * pos[0], y = sc * pos[1], z = sc * pos[2];
 
-    t_float n0, n1, n2, n3; // Noise contributions from the four corners
-
-    // Skew the input space to determine which simplex cell we're in
-    t_float s = (x_in+y_in+z_in)*F3; // Very nice and simple skew factor for 3D
-    t_float xs = x_in+s;
-    t_float ys = y_in+s;
-    t_float zs = z_in+s;
-    int i = fastfloor(xs);
-    int j = fastfloor(ys);
-    int k = fastfloor(zs);
-
-    t_float t = (float)(i+j+k)*G3; 
-    t_float X0 = i-t; // Unskew the cell origin back to (x,y,z) space
-    t_float Y0 = j-t;
-    t_float Z0 = k-t;
-    t_float x0 = x_in-X0; // The x,y,z distances from the cell origin
-    t_float y0 = y_in-Y0;
-    t_float z0 = z_in-Z0;
-
-    // For the 3D case, the simplex shape is a slightly irregular tetrahedron.
-    // Determine which simplex we are in.
-    int c = (x0 >= y0) * 4 + (y0 >= z0) * 2 + (x0 >= z0);
-
-    int i1 = simplex3[c][0];
-    int j1 = simplex3[c][1];
-    int k1 = simplex3[c][2];
-    int i2 = simplex3[c][3];
-    int j2 = simplex3[c][4];
-    int k2 = simplex3[c][5];
-
-    t_float x1 = x0 - i1 + G3; // Offsets for second corner in (x,y,z) coords
-    t_float y1 = y0 - j1 + G3;
-    t_float z1 = z0 - k1 + G3;
-    t_float x2 = x0 - i2 + G3_2; // Offsets for third corner in (x,y,z) coords
-    t_float y2 = y0 - j2 + G3_2;
-    t_float z2 = z0 - k2 + G3_2;
-    t_float x3 = x0 - 1.0f + G3_3; // Offsets for last corner in (x,y,z) coords
-    t_float y3 = y0 - 1.0f + G3_3;
-    t_float z3 = z0 - 1.0f + G3_3;
-
-    // Wrap the integer indices at 256, to avoid indexing perm[] out of bounds
-    int ii = i & 0xff;
-    int jj = j & 0xff;
-    int kk = k & 0xff;
-
-    // Calculate the contribution from the four corners
-    t_float t0 = 0.5f - x0*x0 - y0*y0 - z0*z0;
-    t0 = max(t0, 0.0f);
-    t0 *= t0;
-    n0 = t0 * t0 * grad3(perm[ii+perm[jj+perm[kk]]], x0, y0, z0);
-
-    t_float t1 = 0.5f - x1*x1 - y1*y1 - z1*z1;
-    t1 = max(t1, 0.0f);
-    t1 *= t1;
-    n1 = t1 * t1 * grad3(perm[ii+i1+perm[jj+j1+perm[kk+k1]]], x1, y1, z1);
-
-    t_float t2 = 0.5f - x2*x2 - y2*y2 - z2*z2;
-    t2 = max(t2, 0.0f);
-    t2 *= t2;
-    n2 = t2 * t2 * grad3(perm[ii+i2+perm[jj+j2+perm[kk+k2]]], x2, y2, z2);
-
-    t_float t3 = 0.5f - x3*x3 - y3*y3 - z3*z3;
-    t3 = max(t3, 0.0f);
-    t3 *= t3;
-    n3 = t3 * t3 * grad3(perm[ii+1+perm[jj+1+perm[kk+1]]], x3, y3, z3);
-
-    // Add contributions from each corner to get the final noise value.
-    // The result is scaled to stay just inside [-1,1]
-    return 72.0f * (n0 + n1 + n2 + n3);
+    t_float n0, n1, n2, n3;
+    t_float noise;
+    t_float gx0, gy0, gz0, gx1, gy1, gz1;
+    t_float gx2, gy2, gz2, gx3, gy3, gz3;
+    t_float x1, y1, z1, x2, y2, z2, x3, y3, z3;
+    t_float t0, t1, t2, t3, t20, t40, t21, t41, t22, t42, t23, t43;
+    t_float temp0, temp1, temp2, temp3;
+    t_float s = (x + y + z) * F3;
+    t_float xs = x + s;
+    t_float ys = y + s;
+    t_float zs = z + s;
+    int ii, i = fastfloor(xs);
+    int jj, j = fastfloor(ys);
+    int kk, k = fastfloor(zs);
+    t_float t = (float)(i + j + k) * G3; 
+    t_float X0 = i - t;
+    t_float Y0 = j - t;
+    t_float Z0 = k - t;
+    t_float x0 = x - X0;
+    t_float y0 = y - Y0;
+    t_float z0 = z - Z0;
+    int i1, j1, k1;
+    int i2, j2, k2;
+    if (x0 >= y0) {
+        if (y0 >= z0) {
+            i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
+        } else if (x0 >= z0) {
+            i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1;
+        } else {
+            i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1;
+        }
+    } else {
+        if (y0 < z0) {
+            i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1;
+        } else if (x0 < z0) {
+            i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1;
+        } else {
+            i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
+        }
+    }
+    x1 = x0 - i1 + G3;
+    y1 = y0 - j1 + G3;
+    z1 = z0 - k1 + G3;
+    x2 = x0 - i2 + G3_2;
+    y2 = y0 - j2 + G3_2;
+    z2 = z0 - k2 + G3_2;
+    x3 = x0 - 1.0f + G3_3;
+    y3 = y0 - 1.0f + G3_3;
+    z3 = z0 - 1.0f + G3_3;
+    ii = i & 0xff;
+    jj = j & 0xff;
+    kk = k & 0xff;
+    t0 = 0.5f - x0 * x0 - y0 * y0 - z0 * z0;
+    if (t0 < 0.0f) n0 = t0 = t20 = t40 = gx0 = gy0 = gz0 = 0.0f;
+    else {
+        grad3(perm[ii + perm[jj + perm[kk]]], &gx0, &gy0, &gz0);
+        t20 = t0 * t0;
+        t40 = t20 * t20;
+        n0 = t40 * (gx0 * x0 + gy0 * y0 + gz0 * z0);
+    }
+    t1 = 0.5f - x1 * x1 - y1 * y1 - z1 * z1;
+    if (t1 < 0.0f) n1 = t1 = t21 = t41 = gx1 = gy1 = gz1 = 0.0f;
+    else {
+        grad3(perm[ii + i1 + perm[jj + j1 + perm[kk + k1]]], &gx1, &gy1, &gz1);
+        t21 = t1 * t1;
+        t41 = t21 * t21;
+        n1 = t41 * (gx1 * x1 + gy1 * y1 + gz1 * z1);
+    }
+    t2 = 0.5f - x2 * x2 - y2 * y2 - z2 * z2;
+    if (t2 < 0.0f) n2 = t2 = t22 = t42 = gx2 = gy2 = gz2 = 0.0f;
+    else {
+        grad3(perm[ii + i2 + perm[jj + j2 + perm[kk + k2]]], &gx2, &gy2, &gz2);
+        t22 = t2 * t2;
+        t42 = t22 * t22;
+        n2 = t42 * (gx2 * x2 + gy2 * y2 + gz2 * z2);
+    }
+    t3 = 0.5f - x3 * x3 - y3 * y3 - z3 * z3;
+    if (t3 < 0.0f) n3 = t3 = t23 = t43 = gx3 = gy3 = gz3 = 0.0f;
+    else {
+        grad3(perm[ii + 1 + perm[jj + 1 + perm[kk + 1]]], &gx3, &gy3, &gz3);
+        t23 = t3 * t3;
+        t43 = t23 * t23;
+        n3 = t43 * (gx3 * x3 + gy3 * y3 + gz3 * z3);
+    }
+    noise = 72.0f * (n0 + n1 + n2 + n3);
+    if (d) {
+        temp0 = t20 * t0 * (gx0 * x0 + gy0 * y0 + gz0 * z0);
+        d[0] = temp0 * x0;
+        d[1] = temp0 * y0;
+        d[2] = temp0 * z0;
+        temp1 = t21 * t1 * (gx1 * x1 + gy1 * y1 + gz1 * z1);
+        d[0] += temp1 * x1;
+        d[1] += temp1 * y1;
+        d[2] += temp1 * z1;
+        temp2 = t22 * t2 * (gx2 * x2 + gy2 * y2 + gz2 * z2);
+        d[0] += temp2 * x2;
+        d[1] += temp2 * y2;
+        d[2] += temp2 * z2;
+        temp3 = t23 * t3 * (gx3 * x3 + gy3 * y3 + gz3 * z3);
+        d[0] += temp3 * x3;
+        d[1] += temp3 * y3;
+        d[2] += temp3 * z3;
+        d[0] *= -8.0f;
+        d[1] *= -8.0f;
+        d[2] *= -8.0f;
+        d[0] += t40 * gx0 + t41 * gx1 + t42 * gx2 + t43 * gx3;
+        d[1] += t40 * gy0 + t41 * gy1 + t42 * gy2 + t43 * gy3;
+        d[2] += t40 * gz0 + t41 * gz1 + t42 * gz2 + t43 * gz3;
+        d[0] *= 72.0f;
+        d[1] *= 72.0f;
+        d[2] *= 72.0f;
+    }
+    return noise;
 }
 
-
 // 4D simplex noise
-static t_float snoise4(t_float *pos, t_float sc, unsigned char  *perm) {
-    t_float x_in = sc*pos[0], y_in = sc*pos[1], z_in = sc*pos[2], w_in = sc*pos[3];
+static t_float snoise4(t_float *pos, t_float sc, unsigned char *perm, t_float *d) {
+    t_float x = sc * pos[0], y = sc * pos[1], z = sc * pos[2], w = sc * pos[3];
 
-    t_float n0, n1, n2, n3, n4; // Noise contributions from the five corners
-
-    // Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
-    t_float s = (x_in + y_in + z_in + w_in) * F4; // Factor for 4D skewing
-    t_float xs = x_in + s;
-    t_float ys = y_in + s;
-    t_float zs = z_in + s;
-    t_float ws = w_in + s;
-    int i = fastfloor(xs);
-    int j = fastfloor(ys);
-    int k = fastfloor(zs);
-    int l = fastfloor(ws);
-
-    t_float t = (i + j + k + l) * G4; // Factor for 4D unskewing
-    t_float X0 = i - t; // Unskew the cell origin back to (x,y,z,w) space
+    t_float n0, n1, n2, n3, n4;
+    t_float noise;
+    t_float gx0, gy0, gz0, gw0, gx1, gy1, gz1, gw1;
+    t_float gx2, gy2, gz2, gw2, gx3, gy3, gz3, gw3, gx4, gy4, gz4, gw4;
+    t_float t20, t21, t22, t23, t24;
+    t_float t40, t41, t42, t43, t44;
+    t_float x1, y1, z1, w1, x2, y2, z2, w2, x3, y3, z3, w3, x4, y4, z4, w4;
+    t_float t0, t1, t2, t3, t4;
+    t_float temp0, temp1, temp2, temp3, temp4;
+    t_float s = (x + y + z + w) * F4;
+    t_float xs = x + s;
+    t_float ys = y + s;
+    t_float zs = z + s;
+    t_float ws = w + s;
+    int ii, i = fastfloor(xs);
+    int jj, j = fastfloor(ys);
+    int kk, k = fastfloor(zs);
+    int ll, l = fastfloor(ws);
+    t_float t = (i + j + k + l) * G4;
+    t_float X0 = i - t;
     t_float Y0 = j - t;
     t_float Z0 = k - t;
     t_float W0 = l - t;
-
-    t_float x0 = x_in - X0;  // The x,y,z,w distances from the cell origin
-    t_float y0 = y_in - Y0;
-    t_float z0 = z_in - Z0;
-    t_float w0 = w_in - W0;
-
-    // For the 4D case, the simplex is a 4D shape I won't even try to describe.
-    // To find out which of the 24 possible simplices we're in, we need to
-    // determine the magnitude ordering of x0, y0, z0 and w0.
-    // The method below is a good way of finding the ordering of x,y,z,w and
-    // then find the correct traversal order for the simplex we're in.
-    // First, six pair-wise comparisons are performed between each possible pair
-    // of the four coordinates, and the results are used to add up binary bits
-    // for an integer index.
+    t_float x0 = x - X0;
+    t_float y0 = y - Y0;
+    t_float z0 = z - Z0;
+    t_float w0 = w - W0;
     int c1 = (x0 > y0) << 5;
     int c2 = (x0 > z0) << 4;
     int c3 = (y0 > z0) << 3;
     int c4 = (x0 > w0) << 2;
     int c5 = (y0 > w0) << 1;
     int c6 = (z0 > w0);
-    int c = c1 + c2 + c3 + c4 + c5 + c6;
-
-    int i1, j1, k1, l1; // The integer offsets for the second simplex corner
-    int i2, j2, k2, l2; // The integer offsets for the third simplex corner
-    int i3, j3, k3, l3; // The integer offsets for the fourth simplex corner
-
-    // simplex4[c] is a 4-vector with the numbers 0, 1, 2 and 3 in some order.
-    // Many values of c will never occur, since e.g. x>y>z>w makes x<z, y<w and x<w
-    // impossible. Only the 24 indices which have non-zero entries make any sense.
-    // We use a thresholding to set the coordinates in turn from the largest magnitude.
-    // The number 3 in the "simplex" array is at the position of the largest coordinate.
-    i1 = simplex4[c][0] > 2;
-    j1 = simplex4[c][1] > 2;
-    k1 = simplex4[c][2] > 2;
-    l1 = simplex4[c][3] > 2;
-    // The number 2 in the "simplex" array is at the second largest coordinate.
-    i2 = simplex4[c][0] > 1;
-    j2 = simplex4[c][1] > 1;
-    k2 = simplex4[c][2] > 1;
-    l2 = simplex4[c][3] > 1;
-    // The number 1 in the "simplex" array is at the second smallest coordinate.
-    i3 = simplex4[c][0] > 0;
-    j3 = simplex4[c][1] > 0;
-    k3 = simplex4[c][2] > 0;
-    l3 = simplex4[c][3] > 0;
-    // The fifth corner has all coordinate offsets = 1, so no need to look that up.
-
-    t_float x1 = x0 - i1 + G4; // Offsets for second corner in (x,y,z,w) coords
-    t_float y1 = y0 - j1 + G4;
-    t_float z1 = z0 - k1 + G4;
-    t_float w1 = w0 - l1 + G4;
-    t_float x2 = x0 - i2 + G4_2; // Offsets for third corner in (x,y,z,w) coords
-    t_float y2 = y0 - j2 + G4_2;
-    t_float z2 = z0 - k2 + G4_2;
-    t_float w2 = w0 - l2 + G4_2;
-    t_float x3 = x0 - i3 + G4_3; // Offsets for fourth corner in (x,y,z,w) coords
-    t_float y3 = y0 - j3 + G4_3;
-    t_float z3 = z0 - k3 + G4_3;
-    t_float w3 = w0 - l3 + G4_3;
-    t_float x4 = x0 - 1.0f + G4_4; // Offsets for last corner in (x,y,z,w) coords
-    t_float y4 = y0 - 1.0f + G4_4;
-    t_float z4 = z0 - 1.0f + G4_4;
-    t_float w4 = w0 - 1.0f + G4_4;
-
-    // Wrap the integer indices at 256, to avoid indexing perm[] out of bounds
-    int ii = i & 0xff;
-    int jj = j & 0xff;
-    int kk = k & 0xff;
-    int ll = l & 0xff;
-
-    // Calculate the contribution from the five corners
-    t_float t0 = 0.5f - x0*x0 - y0*y0 - z0*z0 - w0*w0;
-    t0 = max(t0, 0.0f);
-    t0 *= t0;
-    n0 = t0 * t0 * grad4(perm[ii+perm[jj+perm[kk+perm[ll]]]], x0, y0, z0, w0);
-
-    t_float t1 = 0.5f - x1*x1 - y1*y1 - z1*z1 - w1*w1;
-    t1 = max(t1, 0.0f);
-    t1 *= t1;
-    n1 = t1 * t1 * grad4(perm[ii+i1+perm[jj+j1+perm[kk+k1+perm[ll+l1]]]], x1, y1, z1, w1);
-
-    t_float t2 = 0.5f - x2*x2 - y2*y2 - z2*z2 - w2*w2;
-    t2 = max(t2, 0.0f);
-    t2 *= t2;
-    n2 = t2 * t2 * grad4(perm[ii+i2+perm[jj+j2+perm[kk+k2+perm[ll+l2]]]], x2, y2, z2, w2);
-
-    t_float t3 = 0.5f - x3*x3 - y3*y3 - z3*z3 - w3*w3;
-    t3 = max(t3, 0.0f);
-    t3 *= t3;
-    n3 = t3 * t3 * grad4(perm[ii+i3+perm[jj+j3+perm[kk+k3+perm[ll+l3]]]], x3, y3, z3, w3);
-
-    t_float t4 = 0.5f - x4*x4 - y4*y4 - z4*z4 - w4*w4;
-    t4 = max(t4, 0.0f);
-    t4 *= t4;
-    n4 = t4 * t4 * grad4(perm[ii+1+perm[jj+1+perm[kk+1+perm[ll+1]]]], x4, y4, z4, w4);
-
-    // Sum up and scale the result to cover the range [-1,1]
-    return 62.0f * (n0 + n1 + n2 + n3 + n4);
+    int c = c1 | c2 | c3 | c4 | c5 | c6;
+    int i1, j1, k1, l1;
+    int i2, j2, k2, l2;
+    int i3, j3, k3, l3;
+    i1 = simplex[c][0] > 2;
+    j1 = simplex[c][1] > 2;
+    k1 = simplex[c][2] > 2;
+    l1 = simplex[c][3] > 2;
+    i2 = simplex[c][0] > 1;
+    j2 = simplex[c][1] > 1;
+    k2 = simplex[c][2] > 1;
+    l2 = simplex[c][3] > 1;
+    i3 = simplex[c][0];
+    j3 = simplex[c][1];
+    k3 = simplex[c][2];
+    l3 = simplex[c][3];
+    x1 = x0 - i1 + G4;
+    y1 = y0 - j1 + G4;
+    z1 = z0 - k1 + G4;
+    w1 = w0 - l1 + G4;
+    x2 = x0 - i2 + G4_2;
+    y2 = y0 - j2 + G4_2;
+    z2 = z0 - k2 + G4_2;
+    w2 = w0 - l2 + G4_2;
+    x3 = x0 - i3 + G4_3;
+    y3 = y0 - j3 + G4_3;
+    z3 = z0 - k3 + G4_3;
+    w3 = w0 - l3 + G4_3;
+    x4 = x0 - 1.0f + G4_4;
+    y4 = y0 - 1.0f + G4_4;
+    z4 = z0 - 1.0f + G4_4;
+    w4 = w0 - 1.0f + G4_4;
+    ii = i & 0xff;
+    jj = j & 0xff;
+    kk = k & 0xff;
+    ll = l & 0xff;
+    t0 = 0.5f - x0 * x0 - y0 * y0 - z0 * z0 - w0 * w0;
+    if (t0 < 0.0f) n0 = t0 = t20 = t40 = gx0 = gy0 = gz0 = gw0 = 0.0f;
+    else {
+        t20 = t0 * t0;
+        t40 = t20 * t20;
+        grad4(perm[ii + perm[jj + perm[kk + perm[ll]]]], &gx0, &gy0, &gz0, &gw0);
+        n0 = t40 * (gx0 * x0 + gy0 * y0 + gz0 * z0 + gw0 * w0);
+    }
+    t1 = 0.5f - x1 * x1 - y1 * y1 - z1 * z1 - w1 * w1;
+    if (t1 < 0.0f) n1 = t1 = t21 = t41 = gx1 = gy1 = gz1 = gw1 = 0.0f;
+    else {
+        t21 = t1 * t1;
+        t41 = t21 * t21;
+        grad4(perm[ii + i1 + perm[jj + j1 + perm[kk + k1 + perm[ll + l1]]]], &gx1, &gy1, &gz1, &gw1);
+        n1 = t41 * (gx1 * x1 + gy1 * y1 + gz1 * z1 + gw1 * w1);
+    }
+    t2 = 0.5f - x2 * x2 - y2 * y2 - z2 * z2 - w2 * w2;
+    if (t2 < 0.0f) n2 = t2 = t22 = t42 = gx2 = gy2 = gz2 = gw2 = 0.0f;
+    else {
+        t22 = t2 * t2;
+        t42 = t22 * t22;
+        grad4(perm[ii + i2 + perm[jj + j2 + perm[kk + k2 + perm[ll + l2]]]], &gx2, &gy2, &gz2, &gw2);
+        n2 = t42 * (gx2 * x2 + gy2 * y2 + gz2 * z2 + gw2 * w2);
+    }
+    t3 = 0.5f - x3 * x3 - y3 * y3 - z3 * z3 - w3 * w3;
+    if (t3 < 0.0f) n3 = t3 = t23 = t43 = gx3 = gy3 = gz3 = gw3 = 0.0f;
+    else {
+        t23 = t3 * t3;
+        t43 = t23 * t23;
+        grad4(perm[ii + i3 + perm[jj + j3 + perm[kk + k3 + perm[ll + l3]]]], &gx3, &gy3, &gz3, &gw3);
+        n3 = t43 * (gx3 * x3 + gy3 * y3 + gz3 * z3 + gw3 * w3);
+    }
+    t4 = 0.5f - x4 * x4 - y4 * y4 - z4 * z4 - w4 * w4;
+    if (t4 < 0.0f) n4 = t4 = t24 = t44 = gx4 = gy4 = gz4 = gw4 = 0.0f;
+    else {
+        t24 = t4 * t4;
+        t44 = t24 * t24;
+        grad4(perm[ii + 1 + perm[jj + 1 + perm[kk + 1 + perm[ll + 1]]]], &gx4, &gy4, &gz4, &gw4);
+        n4 = t44 * (gx4 * x4 + gy4 * y4 + gz4 * z4 + gw4 * w4);
+    }
+    noise = 62.0f * (n0 + n1 + n2 + n3 + n4);
+    if (d) {
+        temp0 = t20 * t0 * (gx0 * x0 + gy0 * y0 + gz0 * z0 + gw0 * w0);
+        d[0] = temp0 * x0;
+        d[1] = temp0 * y0;
+        d[2] = temp0 * z0;
+        d[3] = temp0 * w0;
+        temp1 = t21 * t1 * (gx1 * x1 + gy1 * y1 + gz1 * z1 + gw1 * w1);
+        d[0] += temp1 * x1;
+        d[1] += temp1 * y1;
+        d[2] += temp1 * z1;
+        d[3] += temp1 * w1;
+        temp2 = t22 * t2 * (gx2 * x2 + gy2 * y2 + gz2 * z2 + gw2 * w2);
+        d[0] += temp2 * x2;
+        d[1] += temp2 * y2;
+        d[2] += temp2 * z2;
+        d[3] += temp2 * w2;
+        temp3 = t23 * t3 * (gx3 * x3 + gy3 * y3 + gz3 * z3 + gw3 * w3);
+        d[0] += temp3 * x3;
+        d[1] += temp3 * y3;
+        d[2] += temp3 * z3;
+        d[3] += temp3 * w3;
+        temp4 = t24 * t4 * (gx4 * x4 + gy4 * y4 + gz4 * z4 + gw4 * w4);
+        d[0] += temp4 * x4;
+        d[1] += temp4 * y4;
+        d[2] += temp4 * z4;
+        d[3] += temp4 * w4;
+        d[0] *= -8.0f;
+        d[1] *= -8.0f;
+        d[2] *= -8.0f;
+        d[3] *= -8.0f;
+        d[0] += t40 * gx0 + t41 * gx1 + t42 * gx2 + t43 * gx3 + t44 * gx4;
+        d[1] += t40 * gy0 + t41 * gy1 + t42 * gy2 + t43 * gy3 + t44 * gy4;
+        d[2] += t40 * gz0 + t41 * gz1 + t42 * gz2 + t43 * gz3 + t44 * gz4;
+        d[3] += t40 * gw0 + t41 * gw1 + t42 * gw2 + t43 * gw3 + t44 * gw4;
+        d[0] *= 62.0f;
+        d[1] *= 62.0f;
+        d[2] *= 62.0f;
+        d[3] *= 62.0f;
+    }
+    return noise;
 }
 
-static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float persistence, int func_index) {
+static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float persistence, int func_index, t_float *derivatives) {
     t_float result = 0.0f;
     t_float coeff = 1.0f;
     t_float normalize_factor = 1.0f;
@@ -411,13 +531,13 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
             normalize_factor /= pow(abs_persistence, x->octaves) - 1.0f;
         }
     }
-    static t_float (*noise_func[])(t_float *, t_float, unsigned char *) = {
+    static t_float (*noise_func[])(t_float *, t_float, unsigned char *, t_float *) = {
         snoise1, snoise2, snoise3, snoise4
     };
     for (int octave = 0; octave < x->octaves; octave++) {
         if (octave) coeff *= persistence; // first octave is not attenuated
         scale = x->octave_factors[octave];
-        result += coeff * noise_func[func_index](pos, scale, x->perm);
+        result += coeff * noise_func[func_index](pos, scale, x->perm, derivatives);
     }
     return result * normalize_factor;
 }
@@ -429,11 +549,16 @@ static t_int *simplex_tilde_perform(t_int *w) {
     t_sample *out = (t_sample *)(w[4]);
     int n_samples = w[5];
     int n_dimensions = w[6];
+
     for (int i = 0; i < n_samples; i++) {
         t_float pos[4] = {0};
         for (int channel = 0; channel < n_dimensions; channel++)
             pos[channel] = in_pos[n_samples * channel + i];
-        *out++ = generate_noise(x, pos, in_persistence[i], n_dimensions-1);
+        out[i] = generate_noise(x, pos, in_persistence[i], n_dimensions - 1, x->derivatives);
+        if (x->compute_derivatives) {
+            for (int d = 0; d < n_dimensions; d++)
+                x->derivative_vector[d][i] = x->derivatives[d];
+        }
     }
     return w+7;
 }
@@ -442,6 +567,11 @@ void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
     int n_samples = (int)sp[0]->s_n;
     int n_dimensions = min(MAX_DIMENSIONS, (int)sp[0]->s_nchans);
     signal_setmultiout(&sp[2], 1);
+    if (x->compute_derivatives) {
+        signal_setmultiout(&sp[3], n_dimensions);
+        for (int i = 0; i < n_dimensions; i++)
+            x->derivative_vector[i] = sp[3]->s_vec + n_samples * i;
+    }
     dsp_add(simplex_tilde_perform, 6,
         x,
         sp[0]->s_vec,
@@ -451,21 +581,21 @@ void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
         n_dimensions);
 }
 
-static inline void init_octave_factors(t_simplex_tilde *x){
+static inline void init_octave_factors(t_simplex_tilde *x) {
     for (int octave = 0; octave < x->octaves; octave++)
         x->octave_factors[octave] = (t_float)(1 << octave);
 }
 
-static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f){
+static void simplex_tilde_octaves(t_simplex_tilde *x, t_floatarg f) {
     x->octaves = (int)clamp(f, 1, MAX_OCTAVES);
     init_octave_factors(x);
 }
 
-static void simplex_tilde_persistence(t_simplex_tilde *x, t_floatarg f){
+static void simplex_tilde_persistence(t_simplex_tilde *x, t_floatarg f) {
     pd_float((t_pd *)x->inlet_persistence, f);
 }
 
-static void simplex_tilde_normalize(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av){
+static void simplex_tilde_normalize(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
     // activate normalization if no argument is given or anything that is not false
     x->normalize = !ac || atom_getfloat(av);
     (void)s;
@@ -482,27 +612,34 @@ static void simplex_tilde_seed(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *
 static void simplex_tilde_coeffs(t_simplex_tilde *x, t_symbol *s, int ac, t_atom *av) {
     int i;
     x->octaves = clamp(ac, 1, MAX_OCTAVES);
-    for (i = 0; i < x->octaves; i++){
+    for (i = 0; i < x->octaves; i++) {
         x->octave_factors[i] = atom_getfloat(av);
         av++;
     }
     (void)s;
 }
 
-static void simplex_tilde_free(t_simplex_tilde *x){
+static void simplex_tilde_free(t_simplex_tilde *x) {
     inlet_free(x->inlet_persistence);
+    if (x->compute_derivatives) {
+        outlet_free(x->outlet_derivatives);
+        freebytes(x->derivatives, MAX_DIMENSIONS * sizeof(t_float));
+        freebytes(x->derivative_vector, MAX_DIMENSIONS * sizeof(t_sample *));
+    }
 }
 
 static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     t_simplex_tilde *x = (t_simplex_tilde *)pd_new(simplex_tilde_class);
     t_float persistence;
-
     x->normalize = 0;
     x->octaves = 1;
+    x->compute_derivatives = 0;
     init_permutation(x->perm);
     while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
             x->normalize = 1;
+        else if (atom_getsymbol(av) == gensym("-d"))
+            x->compute_derivatives = 1;
         else if (atom_getsymbol(av) == gensym("-s")) {
             ac--, av++;
             init_permutation_with_seed(x->perm, (unsigned int)atom_getint(av));
@@ -519,6 +656,12 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
 
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
         pd_float((t_pd *)x->inlet_persistence, persistence);
+
+    if (x->compute_derivatives) {
+        x->outlet_derivatives = outlet_new(&x->x_obj, &s_signal);
+        x->derivatives = (t_float *)getbytes(MAX_DIMENSIONS * sizeof(t_float));
+        x->derivative_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
+    }
     outlet_new(&x->x_obj, &s_signal);
     (void)s;
     return x;
