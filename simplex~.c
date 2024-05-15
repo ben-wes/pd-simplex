@@ -45,12 +45,12 @@ typedef struct _simplex_tilde {
     unsigned char perm[512];
 } t_simplex_tilde;
 
-static float grad2lut[8][2] = {
+static t_float grad2lut[8][2] = {
   { -1.0f, -1.0f }, { 1.0f, 0.0f } , { -1.0f, 0.0f } , { 1.0f, 1.0f } ,
   { -1.0f, 1.0f } , { 0.0f, -1.0f } , { 0.0f, 1.0f } , { 1.0f, -1.0f }
 };
 
-static float grad3lut[16][3] = {
+static t_float grad3lut[16][3] = {
   { 1.0f, 0.0f, 1.0f }, { 0.0f, 1.0f, 1.0f }, 
   { -1.0f, 0.0f, 1.0f }, { 0.0f, -1.0f, 1.0f },
   { 1.0f, 0.0f, -1.0f }, { 0.0f, 1.0f, -1.0f },
@@ -61,7 +61,7 @@ static float grad3lut[16][3] = {
   { 0.0f, 1.0f, -1.0f }, { 0.0f, -1.0f, -1.0f }
 };
 
-static float grad4lut[32][4] = {
+static t_float grad4lut[32][4] = {
   { 0.0f, 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, -1.0f, 1.0f }, { 0.0f, 1.0f, -1.0f, -1.0f },
   { 0.0f, -1.0f, 1.0f, 1.0f }, { 0.0f, -1.0f, 1.0f, -1.0f }, { 0.0f, -1.0f, -1.0f, 1.0f }, { 0.0f, -1.0f, -1.0f, -1.0f },
   { 1.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 0.0f, 1.0f, -1.0f }, { 1.0f, 0.0f, -1.0f, 1.0f }, { 1.0f, 0.0f, -1.0f, -1.0f },
@@ -82,26 +82,26 @@ static unsigned char simplex[64][4] = {
   {2,0,1,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,0,1,2},{3,0,2,1},{0,0,0,0},{3,1,2,0},
   {2,1,0,3},{0,0,0,0},{0,0,0,0},{0,0,0,0},{3,1,0,2},{0,0,0,0},{3,2,0,1},{3,2,1,0}};
 
-static void grad1(int hash, float *gx) {
+static void grad1(int hash, t_float *gx) {
     int h = hash & 15;
     *gx = 1.0f + (h & 7); 
     if (h & 8) *gx = -(*gx); 
 }
 
-static void grad2(int hash, float *gx, float *gy) {
+static void grad2(int hash, t_float *gx, t_float *gy) {
     int h = hash & 7;
     *gx = grad2lut[h][0];
     *gy = grad2lut[h][1];
 }
 
-static void grad3(int hash, float *gx, float *gy, float *gz) {
+static void grad3(int hash, t_float *gx, t_float *gy, t_float *gz) {
     int h = hash & 15;
     *gx = grad3lut[h][0];
     *gy = grad3lut[h][1];
     *gz = grad3lut[h][2];
 }
 
-static void grad4(int hash, float *gx, float *gy, float *gz, float *gw) {
+static void grad4(int hash, t_float *gx, t_float *gy, t_float *gz, t_float *gw) {
     int h = hash & 31;
     *gx = grad4lut[h][0];
     *gy = grad4lut[h][1];
@@ -140,13 +140,13 @@ static t_float snoise1(t_float *pos, t_float sc, unsigned char *perm, t_float *d
 
     int i0 = fastfloor(x);
     int i1 = i0 + 1;
-    float x0 = x - i0;
-    float x1 = x0 - 1.0f;
-    float gx0, gx1;
-    float n0, n1;
-    float t1, t20, t40, t21, t41, x21;
-    float x20 = x0 * x0;
-    float t0 = 1.0f - x20;
+    t_float x0 = x - i0;
+    t_float x1 = x0 - 1.0f;
+    t_float gx0, gx1;
+    t_float n0, n1;
+    t_float t1, t20, t40, t21, t41, x21;
+    t_float x20 = x0 * x0;
+    t_float t0 = 1.0f - x20;
     t20 = t0 * t0;
     t40 = t20 * t20;
     grad1(perm[i0 & 0xff], &gx0);
@@ -258,7 +258,7 @@ static t_float snoise3(t_float *pos, t_float sc, unsigned char *perm, t_float *d
     int ii, i = fastfloor(xs);
     int jj, j = fastfloor(ys);
     int kk, k = fastfloor(zs);
-    t_float t = (float)(i + j + k) * G3; 
+    t_float t = (t_float)(i + j + k) * G3; 
     t_float X0 = i - t;
     t_float Y0 = j - t;
     t_float Z0 = k - t;
