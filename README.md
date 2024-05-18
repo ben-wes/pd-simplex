@@ -40,7 +40,7 @@ make install
 
 ## Additional Information
 ### Octaves
-In case of more than 1 octave, additional noise octaves get sampled, i.e. downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the sampling coordinate with `2^(octave-1)` - for example:
+In case of more than 1 octave, additional noise octaves get sampled, i.e., downscaled instances of the noise space (higher noise frequencies) are added. This downscaling is achieved by multiplying the sampling coordinate with `2^(octave-1)` - for example:
 * input `(1, -3)` samples from `2*(1, -3) = (2,  -6)` for 2nd octave
 * input `(1, -3)` samples from `4*(1, -3) = (4, -12)` for 3rd octave
 
