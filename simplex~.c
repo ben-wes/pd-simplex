@@ -5,6 +5,11 @@
 #include <math.h>
 #include <time.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #define max(a,b) ( ((a) > (b)) ? (a) : (b) )
 #define min(a,b) ( ((a) < (b)) ? (a) : (b) )
@@ -30,6 +35,8 @@
 #define G4_3 0.41458980337
 #define G4_4 0.5527864045
 
+typedef void (*signal_setmultiout_fn)(t_signal **, int); 
+signal_setmultiout_fn g_signal_setmultiout;
 static t_class *simplex_tilde_class;
 
 typedef struct _simplex_tilde {
@@ -585,9 +592,10 @@ static t_int *simplex_tilde_perform(t_int *w) {
 void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
     int n_samples = (int)sp[0]->s_n;
     int n_dimensions = min(MAX_DIMENSIONS, (int)sp[0]->s_nchans);
-    signal_setmultiout(&sp[2], 1);
+    if (!g_signal_setmultiout) return;
+    g_signal_setmultiout(&sp[2], 1);
     if (x->compute_derivatives) {
-        signal_setmultiout(&sp[3], n_dimensions);
+        g_signal_setmultiout(&sp[3], n_dimensions);
         for (int i = 0; i < n_dimensions; i++)
             x->derivative_vector[i] = sp[3]->s_vec + n_samples * i;
     }
@@ -653,6 +661,10 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     x->normalize = 0;
     x->octaves = 1;
     x->compute_derivatives = 0;
+    int maj = 0, min = 0, bug = 0;
+    sys_getversion(&maj, &min, &bug);
+    if(maj==0 && min<54)
+        pd_error(x, "[simplex~]: requires at least Pd 0.54 for multichannel support. This seems to be Pd %i.%i-%i.", maj, min, bug);
     init_permutation(x->perm);
     while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
@@ -674,7 +686,7 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     init_octave_factors(x);
 
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
-        pd_float((t_pd *)x->inlet_persistence, persistence);
+    pd_float((t_pd *)x->inlet_persistence, persistence);
 
     if (x->compute_derivatives) {
         x->outlet_derivatives = outlet_new(&x->x_obj, &s_signal);
@@ -687,11 +699,17 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
 }
 
 void simplex_tilde_setup(void) {
+#ifdef _WIN32
+    g_signal_setmultiout = (signal_setmultiout_fn)GetProcAddress(GetModuleHandle(NULL), "signal_setmultiout");
+#else
+    g_signal_setmultiout = (signal_setmultiout_fn)dlsym(dlopen(NULL, RTLD_NOW), "signal_setmultiout");
+#endif
     simplex_tilde_class = class_new(
         gensym("simplex~"),
         (t_newmethod)simplex_tilde_new,
         (t_method)simplex_tilde_free,
         sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
+  
     class_addmethod(simplex_tilde_class, nullfn, gensym("signal"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_GIMME, 0);
