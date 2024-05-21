@@ -46,6 +46,7 @@ typedef struct _simplex_tilde {
     t_sample **derivative_vector;
     t_float *derivatives;
     t_float octave_factors[MAX_OCTAVES];
+    t_sample f;
     int compute_derivatives;
     int normalize;
     int octaves;
@@ -704,13 +705,14 @@ void simplex_tilde_setup(void) {
 #else
     g_signal_setmultiout = (signal_setmultiout_fn)dlsym(dlopen(NULL, RTLD_NOW), "signal_setmultiout");
 #endif
+
     simplex_tilde_class = class_new(
         gensym("simplex~"),
         (t_newmethod)simplex_tilde_new,
         (t_method)simplex_tilde_free,
         sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
   
-    class_addmethod(simplex_tilde_class, nullfn, gensym("signal"), 0);
+    CLASS_MAINSIGNALIN(simplex_tilde_class, t_simplex_tilde, f);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_GIMME, 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_normalize, gensym("normalize"), A_GIMME, 0);
