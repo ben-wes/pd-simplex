@@ -426,10 +426,10 @@ static t_float snoise4(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     j2 = simplex[c][1] > 1;
     k2 = simplex[c][2] > 1;
     l2 = simplex[c][3] > 1;
-    i3 = simplex[c][0];
-    j3 = simplex[c][1];
-    k3 = simplex[c][2];
-    l3 = simplex[c][3];
+    i3 = simplex[c][0] > 0;
+    j3 = simplex[c][1] > 0;
+    k3 = simplex[c][2] > 0;
+    l3 = simplex[c][3] > 0;
     x1 = x0 - i1 + G4;
     y1 = y0 - j1 + G4;
     z1 = z0 - k1 + G4;
