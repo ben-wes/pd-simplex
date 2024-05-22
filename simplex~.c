@@ -700,11 +700,11 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
 }
 
 void simplex_tilde_setup(void) {
-#ifdef _WIN32
+    #ifdef _WIN32
     g_signal_setmultiout = (signal_setmultiout_fn)GetProcAddress(GetModuleHandle(NULL), "signal_setmultiout");
-#else
+    #else
     g_signal_setmultiout = (signal_setmultiout_fn)dlsym(dlopen(NULL, RTLD_NOW), "signal_setmultiout");
-#endif
+    #endif
 
     simplex_tilde_class = class_new(
         gensym("simplex~"),
