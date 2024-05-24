@@ -35,8 +35,8 @@
 #define G4_3 0.41458980337
 #define G4_4 0.5527864045
 
-typedef void (*signal_setmultiout_fn)(t_signal **, int); 
-signal_setmultiout_fn g_signal_setmultiout;
+typedef void (*t_signal_setmultiout)(t_signal **, int); 
+static t_signal_setmultiout g_signal_setmultiout;
 static t_class *simplex_tilde_class;
 
 typedef struct _simplex_tilde {
@@ -702,7 +702,7 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     x->coordinate_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
     if (!g_signal_setmultiout && !x->dimensions) {
         x->dimensions = 1;
-        pd_error(x, "[simplex~]: multichannel input/output requires at least Pd 0.54. This seems to be Pd %i.%i-%i. Expecting '-dim' argument for dimension count. Falling back to 1 dimension.", maj, min, bug);
+        pd_error(x, "[simplex~]: multichannel input/output requires at least Pd 0.54. This seems to be Pd %i.%i-%i. Use '-dim' argument to set dimension count (defaulting to 1).", maj, min, bug);
     }
     if (!x->multichannel) { // add inlets for non-multichannel mode
         for (int i=0; i < x->dimensions-1; i++)
@@ -725,11 +725,11 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
 }
 
 void simplex_tilde_setup(void) {
-    #ifdef _WIN32
-    g_signal_setmultiout = (signal_setmultiout_fn)GetProcAddress(GetModuleHandle(NULL), "signal_setmultiout");
-    #else
-    g_signal_setmultiout = (signal_setmultiout_fn)dlsym(dlopen(NULL, RTLD_NOW), "signal_setmultiout");
-    #endif
+#ifdef _WIN32
+    g_signal_setmultiout = (t_signal_setmultiout)GetProcAddress(GetModuleHandle(NULL), "signal_setmultiout");
+#else
+    g_signal_setmultiout = (t_signal_setmultiout)dlsym(dlopen(NULL, RTLD_NOW), "signal_setmultiout");
+#endif
 
     simplex_tilde_class = class_new(
         gensym("simplex~"),
