@@ -24,6 +24,7 @@ make install
 * `-n` flag activates normalization of the octaves' sum to keep values in the [-1..1] range
 * `-s <int>` flag initializes the noise's permutation table with a given seed
 * `-d` flag activates derivatives multichannel output on additional 2nd outlet
+* `-dim <int>` flag switches to single-channel mode with given dimension count
 
 #### Optional numerical arguments (must be written after the flags)
 * **first arg** sets the number of octaves (defaults to `1`, max. is `24`)
