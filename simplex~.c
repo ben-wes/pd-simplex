@@ -702,7 +702,8 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     x->coordinate_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
     if (!g_signal_setmultiout && !x->dimensions) {
         x->dimensions = 1;
-        pd_error(x, "[simplex~]: multichannel input/output requires at least Pd 0.54. This seems to be Pd %i.%i-%i. Use '-dim' argument to set dimension count (defaulting to 1).", maj, min, bug);
+        pd_error(x, "[simplex~]: no multichannel support in Pd %i.%i-%i", maj, min, bug);
+        post("[simplex~]: Use '-dim' argument to set dimension count (default: 1).");
     }
     if (!x->multichannel) { // add inlets for non-multichannel mode
         for (int i=0; i < x->dimensions-1; i++)
