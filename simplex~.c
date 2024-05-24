@@ -18,7 +18,7 @@
 
 #define DEFAULT_PERSISTENCE 0.5
 #define MAX_DIMENSIONS 4
-#define MAX_OCTAVES 24
+#define MAX_OCTAVES 1024
 
 #define F2   0.36602540378 // (sqrt(3) - 1) / 2
 #define G2   0.2113248654  // (3 - sqrt(3)) / 6
@@ -42,16 +42,43 @@ static t_class *simplex_tilde_class;
 typedef struct _simplex_tilde {
     t_object x_obj;
     t_inlet *inlet_persistence;
-    t_outlet *outlet_derivatives;
-    t_sample **derivative_vector;
+    t_sample **coordinate_vector;
+    t_sample *in_persistence;
+    t_sample *out_value;
+    t_sample **derivatives_vector;
     t_float *derivatives;
     t_float octave_factors[MAX_OCTAVES];
     t_sample f;
-    int compute_derivatives;
     int normalize;
     int octaves;
+    int dimensions;
     unsigned char perm[512];
 } t_simplex_tilde;
+
+static void init_permutation_with_seed(unsigned char *perm, unsigned int seed) {
+    int i;
+    unsigned char basePermutation[256];
+    for (i = 0; i < 256; i++) {
+        basePermutation[i] = i;
+    }
+    srand(seed);
+    for (i = 255; i > 0; i--) {
+        int j = rand() % (i + 1);
+        unsigned char temp = basePermutation[i];
+        basePermutation[i] = basePermutation[j];
+        basePermutation[j] = temp;
+    }
+    for (i = 0; i < 256; i++) {
+        perm[i] = basePermutation[i];
+        perm[i + 256] = basePermutation[i];
+    }
+}
+
+static void init_permutation(unsigned char *perm) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    init_permutation_with_seed(perm, (unsigned int)ts.tv_nsec);
+}
 
 static t_float grad2lut[8][2] = {
     {-1,-1}, { 1, 0}, {-1, 0}, { 1, 1},
@@ -116,31 +143,6 @@ static void grad4(int hash, t_float *gx, t_float *gy, t_float *gz, t_float *gw) 
     *gy = grad4lut[h][1];
     *gz = grad4lut[h][2];
     *gw = grad4lut[h][3];
-}
-
-static void init_permutation_with_seed(unsigned char *perm, unsigned int seed) {
-    int i;
-    unsigned char basePermutation[256];
-    for (i = 0; i < 256; i++) {
-        basePermutation[i] = i;
-    }
-    srand(seed);
-    for (i = 255; i > 0; i--) {
-        int j = rand() % (i + 1);
-        unsigned char temp = basePermutation[i];
-        basePermutation[i] = basePermutation[j];
-        basePermutation[j] = temp;
-    }
-    for (i = 0; i < 256; i++) {
-        perm[i] = basePermutation[i];
-        perm[i + 256] = basePermutation[i];
-    }
-}
-
-static void init_permutation(unsigned char *perm) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    init_permutation_with_seed(perm, (unsigned int)ts.tv_nsec);
 }
 
 // 1D simplex noise
@@ -571,42 +573,48 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
 
 static t_int *simplex_tilde_perform(t_int *w) {
     t_simplex_tilde *x = (t_simplex_tilde *)(w[1]);
-    t_sample *in_pos = (t_sample *)(w[2]);
-    t_sample *in_persistence = (t_sample *)(w[3]);
-    t_sample *out = (t_sample *)(w[4]);
-    int n_samples = w[5];
-    int n_dimensions = w[6];
-
-    for (int i = 0; i < n_samples; i++) {
+    int n_samples = w[2];
+    int sample, dim;
+    for (sample = 0; sample < n_samples; sample++) {
         t_float pos[4] = {0};
-        for (int channel = 0; channel < n_dimensions; channel++)
-            pos[channel] = in_pos[n_samples * channel + i];
-        out[i] = generate_noise(x, pos, in_persistence[i], n_dimensions - 1, x->derivatives);
-        if (x->compute_derivatives) {
-            for (int d = 0; d < n_dimensions; d++)
-                x->derivative_vector[d][i] = x->derivatives[d];
+        for (dim = 0; dim < x->dimensions; dim++)
+            pos[dim] = x->coordinate_vector[dim][sample];
+        x->out_value[sample] = generate_noise(x, pos, x->in_persistence[sample], x->dimensions - 1, x->derivatives);
+        if (x->derivatives) {
+            for (dim = 0; dim < x->dimensions; dim++)
+                x->derivatives_vector[dim][sample] = x->derivatives[dim];
         }
     }
-    return w+7;
+    return w+3;
 }
 
 void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
     int n_samples = (int)sp[0]->s_n;
-    int n_dimensions = min(MAX_DIMENSIONS, (int)sp[0]->s_nchans);
-    if (!g_signal_setmultiout) return;
-    g_signal_setmultiout(&sp[2], 1);
-    if (x->compute_derivatives) {
-        g_signal_setmultiout(&sp[3], n_dimensions);
-        for (int i = 0; i < n_dimensions; i++)
-            x->derivative_vector[i] = sp[3]->s_vec + n_samples * i;
+    int dim;
+
+    if (g_signal_setmultiout) {
+        x->dimensions = min(MAX_DIMENSIONS, (int)sp[0]->s_nchans);
+        for (dim = 0; dim < x->dimensions; dim++)
+            x->coordinate_vector[dim] = sp[0]->s_vec + n_samples * dim;
+        x->in_persistence = sp[1]->s_vec;
+        g_signal_setmultiout(&sp[2], 1);
+        x->out_value = sp[2]->s_vec;
+        if (x->derivatives) {
+            g_signal_setmultiout(&sp[3], x->dimensions);
+            for (dim = 0; dim < x->dimensions; dim++)
+                x->derivatives_vector[dim] = sp[3]->s_vec + n_samples * dim;
+        }
+    } else {
+        for (dim = 0; dim < x->dimensions; dim++)
+            x->coordinate_vector[dim] = sp[dim]->s_vec;
+        x->in_persistence = sp[x->dimensions]->s_vec;
+        x->out_value = sp[x->dimensions + 1]->s_vec;
+        if (x->derivatives) {
+            for (dim = 0; dim < x->dimensions; dim++)
+                x->derivatives_vector[dim] = sp[x->dimensions + 2 + dim]->s_vec;
+        }
     }
-    dsp_add(simplex_tilde_perform, 6,
-        x,
-        sp[0]->s_vec,
-        sp[1]->s_vec,
-        sp[2]->s_vec,
-        n_samples,
-        n_dimensions);
+    dsp_add(simplex_tilde_perform, 2, x, n_samples);
 }
 
 static inline void init_octave_factors(t_simplex_tilde *x) {
@@ -649,10 +657,10 @@ static void simplex_tilde_coeffs(t_simplex_tilde *x, t_symbol *s, int ac, t_atom
 
 static void simplex_tilde_free(t_simplex_tilde *x) {
     inlet_free(x->inlet_persistence);
-    if (x->compute_derivatives) {
-        outlet_free(x->outlet_derivatives);
+    freebytes(x->coordinate_vector, MAX_DIMENSIONS * sizeof(t_sample *));
+    if (x->derivatives) {
         freebytes(x->derivatives, MAX_DIMENSIONS * sizeof(t_float));
-        freebytes(x->derivative_vector, MAX_DIMENSIONS * sizeof(t_sample *));
+        freebytes(x->derivatives_vector, MAX_DIMENSIONS * sizeof(t_sample *));
     }
 }
 
@@ -661,18 +669,19 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     t_float persistence;
     x->normalize = 0;
     x->octaves = 1;
-    x->compute_derivatives = 0;
+    x->dimensions = 0;
     int maj = 0, min = 0, bug = 0;
     sys_getversion(&maj, &min, &bug);
-    if(maj==0 && min<54)
-        pd_error(x, "[simplex~]: requires at least Pd 0.54 for multichannel support. This seems to be Pd %i.%i-%i.", maj, min, bug);
     init_permutation(x->perm);
     while (ac && av->a_type == A_SYMBOL) {
         if (atom_getsymbol(av) == gensym("-n"))
             x->normalize = 1;
         else if (atom_getsymbol(av) == gensym("-d"))
-            x->compute_derivatives = 1;
-        else if (atom_getsymbol(av) == gensym("-s")) {
+            x->derivatives = (t_float *)getbytes(MAX_DIMENSIONS * sizeof(t_float));
+        else if (atom_getsymbol(av) == gensym("-dim")) {
+            ac--, av++;
+            x->dimensions = clamp((int)atom_getint(av), 1, MAX_DIMENSIONS);
+        } else if (atom_getsymbol(av) == gensym("-s")) {
             ac--, av++;
             init_permutation_with_seed(x->perm, (unsigned int)atom_getint(av));
         } else
@@ -685,16 +694,27 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     }
     persistence = ac ? atom_getfloat(av) : DEFAULT_PERSISTENCE;
     init_octave_factors(x);
+    if (maj == 0 && min < 54 && !x->dimensions) {
+        x->dimensions = 1;
+        pd_error(x, "[simplex~]: multichannel input/output requires at least Pd 0.54. This seems to be Pd %i.%i-%i. Expecting '-dim' argument for dimension count.", maj, min, bug);
+    }
 
+    x->coordinate_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
+
+    if (!g_signal_setmultiout) {
+        for (int i=0; i < x->dimensions-1; i++) // add inlets if no multichannel supported
+            inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
+    }
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
     pd_float((t_pd *)x->inlet_persistence, persistence);
 
-    if (x->compute_derivatives) {
-        x->outlet_derivatives = outlet_new(&x->x_obj, &s_signal);
-        x->derivatives = (t_float *)getbytes(MAX_DIMENSIONS * sizeof(t_float));
-        x->derivative_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
+    outlet_new(&x->x_obj, &s_signal); // outlet for values
+    if (x->derivatives) {
+        x->derivatives_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
+        outlet_new(&x->x_obj, &s_signal); // derivative outlet
+        if (!g_signal_setmultiout) // add outlets if no multichannel supported
+            for (int i=0; i < x->dimensions-1; i++) outlet_new(&x->x_obj, &s_signal);
     }
-    outlet_new(&x->x_obj, &s_signal);
     (void)s;
     return x;
 }
@@ -711,7 +731,7 @@ void simplex_tilde_setup(void) {
         (t_newmethod)simplex_tilde_new,
         (t_method)simplex_tilde_free,
         sizeof(t_simplex_tilde), CLASS_MULTICHANNEL, A_GIMME, 0);
-  
+
     CLASS_MAINSIGNALIN(simplex_tilde_class, t_simplex_tilde, f);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_dsp, gensym("dsp"), 0);
     class_addmethod(simplex_tilde_class, (t_method)simplex_tilde_seed, gensym("seed"), A_GIMME, 0);
