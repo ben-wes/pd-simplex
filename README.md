@@ -27,7 +27,7 @@ make install
 * `-dim <int>` flag switches to single-channel mode with given dimension count
 
 #### Optional numerical arguments (must be written after the flags)
-* **first arg** sets the number of octaves (defaults to `1`, max. is `24`)
+* **first arg** sets the number of octaves (defaults to `1`, max. is `1024`)
 * **second arg** sets initial persistence (defaults to `0.5`) 
 
 ### Messages
