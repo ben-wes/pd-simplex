@@ -49,6 +49,7 @@ typedef struct _simplex_tilde {
     t_float *derivatives;
     t_float octave_factors[MAX_OCTAVES];
     t_sample f;
+    int multichannel;
     int normalize;
     int octaves;
     int dimensions;
@@ -592,7 +593,7 @@ void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
     int n_samples = (int)sp[0]->s_n;
     int dim;
 
-    if (g_signal_setmultiout) {
+    if (x->multichannel) {
         x->dimensions = min(MAX_DIMENSIONS, (int)sp[0]->s_nchans);
         for (dim = 0; dim < x->dimensions; dim++)
             x->coordinate_vector[dim] = sp[0]->s_vec + n_samples * dim;
@@ -608,10 +609,13 @@ void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
         for (dim = 0; dim < x->dimensions; dim++)
             x->coordinate_vector[dim] = sp[dim]->s_vec;
         x->in_persistence = sp[x->dimensions]->s_vec;
+        if (g_signal_setmultiout) g_signal_setmultiout(&sp[x->dimensions + 1], 1);
         x->out_value = sp[x->dimensions + 1]->s_vec;
         if (x->derivatives) {
-            for (dim = 0; dim < x->dimensions; dim++)
+            for (dim = 0; dim < x->dimensions; dim++) {
+                if (g_signal_setmultiout) g_signal_setmultiout(&sp[x->dimensions + 2 + dim], 1);
                 x->derivatives_vector[dim] = sp[x->dimensions + 2 + dim]->s_vec;
+            }
         }
     }
     dsp_add(simplex_tilde_perform, 2, x, n_samples);
@@ -694,26 +698,27 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     }
     persistence = ac ? atom_getfloat(av) : DEFAULT_PERSISTENCE;
     init_octave_factors(x);
-    if (maj == 0 && min < 54 && !x->dimensions) {
-        x->dimensions = 1;
-        pd_error(x, "[simplex~]: multichannel input/output requires at least Pd 0.54. This seems to be Pd %i.%i-%i. Expecting '-dim' argument for dimension count.", maj, min, bug);
-    }
-
+    x->multichannel = !x->dimensions && g_signal_setmultiout;
     x->coordinate_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
-
-    if (!g_signal_setmultiout) {
-        for (int i=0; i < x->dimensions-1; i++) // add inlets if no multichannel supported
+    if (!g_signal_setmultiout && !x->dimensions) {
+        x->dimensions = 1;
+        pd_error(x, "[simplex~]: multichannel input/output requires at least Pd 0.54. This seems to be Pd %i.%i-%i. Expecting '-dim' argument for dimension count. Falling back to 1 dimension.", maj, min, bug);
+    }
+    if (!x->multichannel) { // add inlets for non-multichannel mode
+        for (int i=0; i < x->dimensions-1; i++)
             inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
     }
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
     pd_float((t_pd *)x->inlet_persistence, persistence);
 
-    outlet_new(&x->x_obj, &s_signal); // outlet for values
+    outlet_new(&x->x_obj, &s_signal); // sampled value outlet
     if (x->derivatives) {
         x->derivatives_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
-        outlet_new(&x->x_obj, &s_signal); // derivative outlet
-        if (!g_signal_setmultiout) // add outlets if no multichannel supported
-            for (int i=0; i < x->dimensions-1; i++) outlet_new(&x->x_obj, &s_signal);
+        outlet_new(&x->x_obj, &s_signal); // derivatives outlet
+        if (!x->multichannel) { // add outlets for non-multichannel mode
+            for (int i=0; i < x->dimensions-1; i++)
+                outlet_new(&x->x_obj, &s_signal);
+        }
     }
     (void)s;
     return x;
