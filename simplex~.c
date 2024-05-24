@@ -36,7 +36,7 @@
 #define G4_4 0.5527864045
 
 typedef void (*t_signal_setmultiout)(t_signal **, int); 
-static t_signal_setmultiout g_signal_setmultiout;
+t_signal_setmultiout g_signal_setmultiout;
 static t_class *simplex_tilde_class;
 
 typedef struct _simplex_tilde {
