@@ -1,5 +1,5 @@
 // external created by Ben Wesch, 2024
-// simplex algorithms from https://github.com/stegu/perlin-noise/blob/master/src/sdnoise1234.c
+// simplex algorithms by Stefan Gustavson (slightly adapted) from https://github.com/stegu/perlin-noise/blob/master/src/sdnoise1234.c
 
 #include "m_pd.h"
 #include <math.h>
@@ -86,14 +86,23 @@ static t_float grad2lut[8][2] = {
     {-1, 1}, { 0,-1}, { 0, 1}, { 1,-1}
 };
 
+/*
+ * Gradient directions for 3D.
+ * These vectors are based on the midpoints of the 12 edges of a cube.
+ * A larger array of random unit length vectors would also do the job,
+ * but these 12 (including 4 repeats to make the array length a power
+ * of two) work better. They are not random, they are carefully chosen
+ * to represent a small, isotropic set of directions.
+ */
+
 static t_float grad3lut[16][3] = {
-    { 1, 0, 1}, { 0, 1, 1}, 
+    { 1, 0, 1}, { 0, 1, 1}, // 12 cube edges
     {-1, 0, 1}, { 0,-1, 1},
     { 1, 0,-1}, { 0, 1,-1},
     {-1, 0,-1}, { 0,-1,-1},
     { 1,-1, 0}, { 1, 1, 0},
     {-1, 1, 0}, {-1,-1, 0},
-    { 1, 0, 1}, {-1, 0, 1}, 
+    { 1, 0, 1}, {-1, 0, 1}, // 4 repeats to make 16
     { 0, 1,-1}, { 0,-1,-1}
 };
 
