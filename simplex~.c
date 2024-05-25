@@ -14,7 +14,7 @@
 #define max(a,b) ( ((a) > (b)) ? (a) : (b) )
 #define min(a,b) ( ((a) < (b)) ? (a) : (b) )
 #define clamp(a,b,c) (min(max((a), (b)), (c)))
-#define fastfloor(x) ( ((int)(x)<=(x)) ? ((int)x) : (((int)x)-1) )
+#define fastfloor(x) ( ((t_int)(x)<=(x)) ? ((t_int)x) : (((t_int)x)-1) )
 
 #define DEFAULT_PERSISTENCE 0.5
 #define MAX_DIMENSIONS 4
@@ -119,27 +119,27 @@ static unsigned char simplex[64][4] = {
     {2,1,0,3}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {3,1,0,2}, {0,0,0,0}, {3,2,0,1}, {3,2,1,0}
 };
 
-static void grad1(int hash, t_float *gx) {
-    int h = hash & 15;
+static void grad1(t_int hash, t_float *gx) {
+    t_int h = hash & 15;
     *gx = 1 + (h & 7); 
     if (h & 8) *gx = -(*gx); 
 }
 
-static void grad2(int hash, t_float *gx, t_float *gy) {
-    int h = hash & 7;
+static void grad2(t_int hash, t_float *gx, t_float *gy) {
+    t_int h = hash & 7;
     *gx = grad2lut[h][0];
     *gy = grad2lut[h][1];
 }
 
-static void grad3(int hash, t_float *gx, t_float *gy, t_float *gz) {
-    int h = hash & 15;
+static void grad3(t_int hash, t_float *gx, t_float *gy, t_float *gz) {
+    t_int h = hash & 15;
     *gx = grad3lut[h][0];
     *gy = grad3lut[h][1];
     *gz = grad3lut[h][2];
 }
 
-static void grad4(int hash, t_float *gx, t_float *gy, t_float *gz, t_float *gw) {
-    int h = hash & 31;
+static void grad4(t_int hash, t_float *gx, t_float *gy, t_float *gz, t_float *gw) {
+    t_int h = hash & 31;
     *gx = grad4lut[h][0];
     *gy = grad4lut[h][1];
     *gz = grad4lut[h][2];
@@ -150,8 +150,8 @@ static void grad4(int hash, t_float *gx, t_float *gy, t_float *gz, t_float *gw) 
 static t_float snoise1(t_float *pos, t_float sc, t_float coeff, unsigned char *perm, t_float *derivatives) {
     t_float x = sc * pos[0];
 
-    int i0 = fastfloor(x);
-    int i1 = i0 + 1;
+    t_int i0 = fastfloor(x);
+    t_int i1 = i0 + 1;
     t_float x0 = x - i0;
     t_float x1 = x0 - 1;
     t_float gx0, gx1;
@@ -193,14 +193,14 @@ static t_float snoise2(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     t_float s = (x + y) * F2;
     t_float xs = x + s;
     t_float ys = y + s;
-    int ii, i = fastfloor(xs);
-    int jj, j = fastfloor(ys);
+    t_int ii, i = fastfloor(xs);
+    t_int jj, j = fastfloor(ys);
     t_float t = (t_float)(i + j) * G2;
     t_float X0 = i - t;
     t_float Y0 = j - t;
     t_float x0 = x - X0;
     t_float y0 = y - Y0;
-    int i1, j1;
+    t_int i1, j1;
     if (x0 > y0) { i1 = 1; j1 = 0; }
     else { i1 = 0; j1 = 1; }
     x1 = x0 - i1 + G2;
@@ -272,9 +272,9 @@ static t_float snoise3(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     t_float xs = x + s;
     t_float ys = y + s;
     t_float zs = z + s;
-    int ii, i = fastfloor(xs);
-    int jj, j = fastfloor(ys);
-    int kk, k = fastfloor(zs);
+    t_int ii, i = fastfloor(xs);
+    t_int jj, j = fastfloor(ys);
+    t_int kk, k = fastfloor(zs);
     t_float t = (t_float)(i + j + k) * G3; 
     t_float X0 = i - t;
     t_float Y0 = j - t;
@@ -282,8 +282,8 @@ static t_float snoise3(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     t_float x0 = x - X0;
     t_float y0 = y - Y0;
     t_float z0 = z - Z0;
-    int i1, j1, k1;
-    int i2, j2, k2;
+    t_int i1, j1, k1;
+    t_int i2, j2, k2;
     if (x0 >= y0) {
         if (y0 >= z0) {
             i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0;
@@ -398,10 +398,10 @@ static t_float snoise4(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     t_float ys = y + s;
     t_float zs = z + s;
     t_float ws = w + s;
-    int ii, i = fastfloor(xs);
-    int jj, j = fastfloor(ys);
-    int kk, k = fastfloor(zs);
-    int ll, l = fastfloor(ws);
+    t_int ii, i = fastfloor(xs);
+    t_int jj, j = fastfloor(ys);
+    t_int kk, k = fastfloor(zs);
+    t_int ll, l = fastfloor(ws);
     t_float t = (i + j + k + l) * G4;
     t_float X0 = i - t;
     t_float Y0 = j - t;
@@ -411,16 +411,16 @@ static t_float snoise4(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     t_float y0 = y - Y0;
     t_float z0 = z - Z0;
     t_float w0 = w - W0;
-    int c1 = (x0 > y0) << 5;
-    int c2 = (x0 > z0) << 4;
-    int c3 = (y0 > z0) << 3;
-    int c4 = (x0 > w0) << 2;
-    int c5 = (y0 > w0) << 1;
-    int c6 = (z0 > w0);
-    int c = c1 | c2 | c3 | c4 | c5 | c6;
-    int i1, j1, k1, l1;
-    int i2, j2, k2, l2;
-    int i3, j3, k3, l3;
+    t_int c1 = (x0 > y0) << 5;
+    t_int c2 = (x0 > z0) << 4;
+    t_int c3 = (y0 > z0) << 3;
+    t_int c4 = (x0 > w0) << 2;
+    t_int c5 = (y0 > w0) << 1;
+    t_int c6 = (z0 > w0);
+    t_int c = c1 | c2 | c3 | c4 | c5 | c6;
+    t_int i1, j1, k1, l1;
+    t_int i2, j2, k2, l2;
+    t_int i3, j3, k3, l3;
     i1 = simplex[c][0] > 2;
     j1 = simplex[c][1] > 2;
     k1 = simplex[c][2] > 2;
@@ -547,6 +547,7 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
     t_float normalize_factor = 1;
     t_float scale;
     t_float abs_persistence = fabs(persistence);
+    int i, octave;
 
     // normalization according to (1 / geometric series including p^0) based on given persistence
     if (x->normalize) {
@@ -561,10 +562,10 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
         snoise1, snoise2, snoise3, snoise4
     };
     if (derivatives) {
-        for (int i = 0; i < MAX_DIMENSIONS; i++)
+        for (i = 0; i < MAX_DIMENSIONS; i++)
             derivatives[i] = 0;
     }
-    for (int octave = 0; octave < x->octaves; octave++) {
+    for (octave = 0; octave < x->octaves; octave++) {
         if (octave) coeff *= persistence; // first octave is not attenuated
         scale = x->octave_factors[octave];
         result += noise_func[func_index](pos, scale, coeff, x->perm, derivatives);
@@ -574,7 +575,7 @@ static inline t_float generate_noise(t_simplex_tilde *x, t_float *pos, t_float p
 
 static t_int *simplex_tilde_perform(t_int *w) {
     t_simplex_tilde *x = (t_simplex_tilde *)(w[1]);
-    int n_samples = w[2];
+    t_int n_samples = w[2];
     int sample, dim;
     for (sample = 0; sample < n_samples; sample++) {
         t_float pos[4] = {0};
@@ -590,11 +591,11 @@ static t_int *simplex_tilde_perform(t_int *w) {
 }
 
 void simplex_tilde_dsp(t_simplex_tilde *x, t_signal **sp) {
-    int n_samples = (int)sp[0]->s_n;
+    t_int n_samples = (t_int)sp[0]->s_n;
     int dim;
 
     if (x->multichannel) {
-        x->dimensions = min(MAX_DIMENSIONS, (int)sp[0]->s_nchans);
+        x->dimensions = (int)min(MAX_DIMENSIONS, sp[0]->s_nchans);
         for (dim = 0; dim < x->dimensions; dim++)
             x->coordinate_vector[dim] = sp[0]->s_vec + n_samples * dim;
         x->in_persistence = sp[1]->s_vec;
@@ -674,6 +675,7 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     x->normalize = 0;
     x->octaves = 1;
     x->dimensions = 0;
+    int i;
     int maj = 0, min = 0, bug = 0;
     sys_getversion(&maj, &min, &bug);
     init_permutation(x->perm);
@@ -703,10 +705,10 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
     if (!g_signal_setmultiout && !x->dimensions) {
         x->dimensions = 1;
         pd_error(x, "[simplex~]: no multichannel support in Pd %i.%i-%i", maj, min, bug);
-        post("[simplex~]: Use '-dim' argument to set dimension count (default: 1).");
+        post("[simplex~]: use '-dim <count>' flag to set dimension count (default: 1)");
     }
     if (!x->multichannel) { // add inlets for non-multichannel mode
-        for (int i=0; i < x->dimensions-1; i++)
+        for (i=0; i < x->dimensions-1; i++)
             inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
     }
     x->inlet_persistence = inlet_new(&x->x_obj, &x->x_obj.ob_pd, &s_signal, &s_signal);
@@ -717,7 +719,7 @@ static void *simplex_tilde_new(t_symbol *s, int ac, t_atom *av) {
         x->derivatives_vector = (t_sample **)getbytes(MAX_DIMENSIONS * sizeof(t_sample *));
         outlet_new(&x->x_obj, &s_signal); // derivatives outlet
         if (!x->multichannel) { // add outlets for non-multichannel mode
-            for (int i=0; i < x->dimensions-1; i++)
+            for (i=0; i < x->dimensions-1; i++)
                 outlet_new(&x->x_obj, &s_signal);
         }
     }
