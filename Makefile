@@ -1,6 +1,6 @@
 lib.name = simplex~
 class.sources = simplex~.c
-datafiles = simplex~-help.pd LICENSE
+datafiles = simplex~-help.pd simplex~-meta.pd LICENSE
 datadirs = x
 
 PDLIBBUILDER_DIR=./pd-lib-builder
