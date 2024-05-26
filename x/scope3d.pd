@@ -1,6 +1,6 @@
 #N canvas 903 159 852 793 10;
 #X obj 367 247 bang~;
-#X obj 100 487 inlet~;
+#X obj 100 467 inlet~;
 #X obj 547 332 pointer;
 #X msg 586 263 clear;
 #X msg 513 312 0 0;
@@ -88,8 +88,9 @@
 #X coords -1 1 1 -1 140 140 2 100 100;
 #X restore 100 100 pd \$0-display;
 #X msg 682 116 set \$1 2 0.5;
+#X obj 100 495 *~ 1.04;
 #X connect 0 0 54 0;
-#X connect 1 0 33 0;
+#X connect 1 0 67 0;
 #X connect 2 0 27 2;
 #X connect 3 0 28 0;
 #X connect 4 0 27 0;
@@ -156,4 +157,5 @@
 #X connect 60 0 61 0;
 #X connect 63 0 58 3;
 #X connect 66 0 23 0;
+#X connect 67 0 33 0;
 #X coords 0 -1 1 1 140 140 1 100 100;
