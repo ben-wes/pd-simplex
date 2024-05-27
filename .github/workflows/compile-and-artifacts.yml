@@ -13,8 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        os: [linux]
         arch: [amd64]
-        precision: [32, 64]
+        floatsize: [32, 64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,20 +25,26 @@ jobs:
         run: git clone --branch=${{ env.PD_VERSION }} --depth=1 https://github.com/pure-data/pure-data.git
 
       - name: Compile external
-        run: make install floatsize=${{ matrix.precision }} extension=linux-${{ matrix.arch }}-${{ matrix.precision }}.so
+        run: |
+          if [ ${{ matrix.floatsize }} -eq 32 ]; then
+            make install floatsize=${{ matrix.floatsize }} extension=pd_${{ matrix.os }}
+          else
+            make install floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.so
+          fi
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.LIBNAME}}-linux-${{ matrix.arch }}-pd${{ matrix.precision }}
+          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: build/${{env.LIBNAME}}
 
   build-macos:
     runs-on: macos-latest
     strategy:
       matrix:
-        arch: [fat]
-        precision: [32, 64]
+        os: [darwin]
+        arch: [amd64, arm64] # FIXME: those will both result in a redundant fat build for now
+        floatsize: [32, 64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,24 +58,25 @@ jobs:
 
       - name: Compile external
         run: |
-          if [ ${{ matrix.precision }} -eq 32 ]; then
-            make install floatsize=32 extension=d_fat arch="x86_64 arm64"
+          if [ ${{ matrix.floatsize }} -eq 32 ]; then
+            make install floatsize=${{ matrix.floatsize }} extension=d_fat arch="x86_64 arm64"
           else
-            make install floatsize=64 extension=darwin-${{ matrix.arch }}-${{ matrix.precision }}.so arch="x86_64 arm64"
+            make install floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-fat-${{ matrix.floatsize }}.so arch="x86_64 arm64"
           fi
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.LIBNAME}}-macos-${{ matrix.arch }}-pd${{ matrix.precision }}
+          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: build/${{env.LIBNAME}}
 
   build-windows:
     runs-on: windows-latest
     strategy:
       matrix:
+        os: [windows]
         arch: [amd64]
-        precision: [32]
+        floatsize: [32, 64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,8 +84,12 @@ jobs:
 
       - name: Download Pure-Data Binaries
         run: |
-          Invoke-WebRequest -Uri "http://msp.ucsd.edu/Software/pd-${{env.PD_VERSION}}.msw.zip" -OutFile "pd-${{env.PD_VERSION}}.msw.zip"
-          Expand-Archive -Path "pd-${{env.PD_VERSION}}.msw.zip" -DestinationPath .
+          if (${{ matrix.floatsize }} -eq 32) {
+            Invoke-WebRequest -Uri "http://msp.ucsd.edu/Software/pd-${{env.PD_VERSION}}.msw.zip" -OutFile "pd${{ matrix.floatsize }}-${{env.PD_VERSION}}.msw.zip"
+          } else {
+            Invoke-WebRequest -Uri "https://puredata.info/downloads/pure-data/releases/${{env.PD_VERSION}}-pd64/Pd64-${{env.PD_VERSION}}.msw.zip" -OutFile "pd${{ matrix.floatsize }}-${{env.PD_VERSION}}.msw.zip"
+          }
+          Expand-Archive -Path "pd${{ matrix.floatsize }}-${{env.PD_VERSION}}.msw.zip" -DestinationPath .
 
       - name: Set up compiler environment
         run: |
@@ -87,12 +99,16 @@ jobs:
         shell: bash
         run: |
           export PATH="/c/msys64/mingw64/bin:$PATH"  # Ensure MinGW GCC is preferred if needed
-          make install CC=gcc PDINCLUDEDIR="pd-${{env.PD_VERSION}}/src" PDDIR="pd-${{env.PD_VERSION}}" PDBINDIR="pd-${{env.PD_VERSION}}/bin" extension=dll
+          if [ ${{ matrix.floatsize }} -eq 32 ]; then
+            make install CC=gcc PDINCLUDEDIR="pd-${{env.PD_VERSION}}/src" PDDIR="pd-${{env.PD_VERSION}}" PDBINDIR="pd-${{env.PD_VERSION}}/bin" floatsize=${{ matrix.floatsize }} extension=m_${{ matrix.arch }}
+          else
+            make install CC=gcc PDINCLUDEDIR="Pd-0.54.1/src" PDDIR="Pd-0.54.1" PDBINDIR="Pd-0.54.1/bin" floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.dll
+          fi
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.LIBNAME}}-windows-${{ matrix.arch }}-pd${{ matrix.precision }}
+          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: build/${{env.LIBNAME}}
 
 
@@ -101,22 +117,17 @@ jobs:
     needs: [ build-linux, build-macos, build-windows ]
     strategy:
       matrix:
-        os: [linux, macos, windows]
-        arch: [amd64, arm64, fat]
-        precision: [32, 64]
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+        floatsize: [32, 64]
         exclude:
-          - { os: windows, precision: 64 }
           - { os: windows, arch: arm64 }
-          - { os: windows, arch: fat }
-          - { os: linux, arch: fat }
-          - { os: linux, arch: arm64 }
-          - { os: macos, arch: arm64 }
-          - { os: macos, arch: amd64 }
+          - { os: linux,   arch: arm64 }
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.precision }}
+          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: artifacts/${{ matrix.os }}
 
   package-release:
@@ -130,7 +141,7 @@ jobs:
         run: |
           mkdir -p ${{env.LIBNAME}}
           mkdir -p artifacts/linux
-          mkdir -p artifacts/macos
+          mkdir -p artifacts/darwin
           mkdir -p artifacts/windows
 
       - name: Download All Artifacts
