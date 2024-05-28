@@ -26,12 +26,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Set environment variables for architecture
-        run: |
-          if [ "${{ matrix.arch }}" == "arm64" ]; then
-            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          fi
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Clone Pd
         run: git clone --branch=${{ env.PD_VERSION }} --depth=1 https://github.com/pure-data/pure-data.git
@@ -60,7 +55,7 @@ jobs:
     strategy:
       matrix:
         os: [darwin]
-        arch: [amd64] # FIXME: building for both architectures with this seems hacky
+        arch: [amd64, arm64]
         floatsize: [32, 64]
     steps:
       - uses: actions/checkout@v4
@@ -73,12 +68,13 @@ jobs:
       - name: Set up environment
         run: brew install make
 
-      - name: Compile universal external
+      - name: Compile external
         run: |
+          ARCH=${{ matrix.arch == 'amd64' && 'x86_64' || matrix.arch }}
           if [ ${{ matrix.floatsize }} -eq 32 ]; then
-            make install floatsize=${{ matrix.floatsize }} extension=d_fat arch="x86_64 arm64"
-          else
-            make install floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-fat-${{ matrix.floatsize }}.so arch="x86_64 arm64"
+            make install floatsize=${{ matrix.floatsize }} extension=d_${{ matrix.arch }} arch=${ARCH}
+          elif [ ${{ matrix.floatsize }} -eq 64 ]; then
+            make install floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.so arch=${ARCH}
           fi
 
       - name: Archive artifacts
