@@ -9,7 +9,7 @@ env:
   LIBNAME: simplex~
 
 jobs:
-  build-linux:
+  build_linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -50,7 +50,7 @@ jobs:
           name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: build/${{env.LIBNAME}}
 
-  build-macos:
+  build_macos:
     runs-on: macos-latest
     strategy:
       matrix:
@@ -83,7 +83,7 @@ jobs:
           name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: build/${{env.LIBNAME}}
 
-  build-windows:
+  build_windows:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -124,69 +124,74 @@ jobs:
           name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
           path: build/${{env.LIBNAME}}
 
-
-  download-artifacts:
+  package:
     runs-on: ubuntu-latest
-    needs: [ build-linux, build-macos, build-windows ]
+    needs: [build_linux, build_macos, build_windows]
     strategy:
       matrix:
-        os: [linux, darwin, windows]
-        arch: [amd64, arm64]
-        floatsize: [32, 64]
-        exclude:
-          - { os: windows, arch: arm64 }
-          - { os: darwin,   arch: arm64 }
+        os: [windows, darwin, linux]
     steps:
-      - name: Download Artifacts
+      - name: Download Artifacts # FIXME: downloads all artifacts for each OS
         uses: actions/download-artifact@v4
         with:
-          name: ${{env.LIBNAME}}-${{ matrix.os }}-${{ matrix.arch }}-pd${{ matrix.floatsize }}
-          path: artifacts/${{ matrix.os }}
-
-  package-release:
-    needs: download-artifacts
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - name: Setup directories
-        run: |
-          mkdir -p ${{env.LIBNAME}}
-          mkdir -p artifacts/linux
-          mkdir -p artifacts/darwin
-          mkdir -p artifacts/windows
-
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
+          path: artifacts
 
       - name: Merge Artifacts
         run: |
-          cp -rn artifacts/*/* ${{env.LIBNAME}}/
-
-      - name: Rezip
-        run: |
-          SHORT=${GITHUB_REF:11} # Removes 'refs/tags/' prefix
-          SLUG=${SHORT//\//_} # Replaces '/' with '_'
-          zip -r ${{env.LIBNAME}}-${SLUG}.zip ${{env.LIBNAME}}
+          mkdir -p package
+          cp -rn artifacts/${{env.LIBNAME}}-${{ matrix.os }}*/* package
 
       - name: Upload release content as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.LIBNAME}}
-          path: ${{env.LIBNAME}}
+          name: ${{env.LIBNAME}}-${{ matrix.os }}
+          path: package
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [package]
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{env.LIBNAME}}-windows
+          path: package-windows
+
+      - name: Download Darwin
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{env.LIBNAME}}-darwin
+          path: package-darwin
+
+      - name: Download Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{env.LIBNAME}}-linux
+          path: package-linux
+
+      - name: Rezip Artifacts
+        run: |
+          SHORT=${GITHUB_REF:11} # Removes 'refs/tags/' prefix
+          SLUG=${SHORT//\//_} # Replaces '/' with '_'
+          mkdir -p release
+          for os in linux darwin windows; do
+            cd package-${os}
+            zip -r ../release/${{env.LIBNAME}}-${SLUG}.zip .
+            cd ..
+          done
 
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: simplex*.zip
+          files: release/${{env.LIBNAME}}-*.zip
 
   upload_to_deken:
     runs-on: ubuntu-latest
-    needs: [package-release]
+    needs: [package]
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v4
