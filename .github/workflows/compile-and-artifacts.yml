@@ -225,16 +225,15 @@ jobs:
 
           if [[ "${GITHUB_REF}" == *"test"* ]]; then
             for os in linux darwin windows; do
-              echo "Dry-run: Preparing ${{env.LIBNAME}}-${os} for test tag ${GITHUB_REF}"
+              echo "Dry-run: Preparing ${{env.LIBNAME}}-${os} for test tag ${GITHUB_REF}" | tee -a $GITHUB_STEP_SUMMARY
               mkdir -p ${PWD}/package-${os}
               docker run --rm --user $(id -u) --volume ${PWD}/${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} --volume ${PWD}/package-${os}:/package registry.git.iem.at/pd/deken \
                 deken package --output-dir /package -v "${SLUG}" /${{env.LIBNAME}}
-              echo "Listing generated ${os} Deken files for potential release:"
-              ls -l ${PWD}/package-${os}
-              echo "Listing contents of ${os} .dek file:"
+
               dek_files=$(ls ${PWD}/package-${os}/*.dek)
               for dek_file in $dek_files; do
-                unzip -l "$dek_file"
+                echo "Contents of $dek_file:" | tee -a $GITHUB_STEP_SUMMARY
+                unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
               done
             done
           else
