@@ -234,7 +234,7 @@ jobs:
               for dek_file in $dek_files; do
                 filename=$(basename "$dek_file")
                 echo -e "#### Contents of \`$filename\`:\n\`\`\`" | tee -a $GITHUB_STEP_SUMMARY
-                unzip -l "$dek_file" | awk 'NR>3 {print $4}' | tee -a $GITHUB_STEP_SUMMARY
+                unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | tee -a $GITHUB_STEP_SUMMARY
                 echo '```' | tee -a $GITHUB_STEP_SUMMARY
               done
             done
