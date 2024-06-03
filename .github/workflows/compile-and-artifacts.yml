@@ -225,7 +225,7 @@ jobs:
 
           if [[ "${SLUG}" == *"test"* ]]; then
             for os in linux darwin windows; do
-              echo "## ${{env.LIBNAME}}-${os} ${SLUG}" | tee -a $GITHUB_STEP_SUMMARY
+              echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
               mkdir -p package-${os}
               docker run --rm --user $(id -u) --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} --volume ./package-${os}:/package registry.git.iem.at/pd/deken \
                 deken package --output-dir /package -v "${SLUG}" /${{env.LIBNAME}}
@@ -233,7 +233,8 @@ jobs:
               dek_files=$(ls package-${os}/*.dek)
               for dek_file in $dek_files; do
                 filename=$(basename "$dek_file")
-                echo -e "#### Contents of \`$filename\`:\n\`\`\`" | tee -a $GITHUB_STEP_SUMMARY
+                echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+                echo '```' | tee -a $GITHUB_STEP_SUMMARY
                 unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | tee -a $GITHUB_STEP_SUMMARY
                 echo '```' | tee -a $GITHUB_STEP_SUMMARY
               done
