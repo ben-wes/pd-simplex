@@ -187,7 +187,7 @@ jobs:
         with:
           files: release/${{env.LIBNAME}}-*.zip
 
-  upload_to_deken:
+  deken_check_and_upload:
     runs-on: ubuntu-latest
     needs: [package]
     permissions:
@@ -223,24 +223,26 @@ jobs:
           SHORT=${GITHUB_REF:11} # remove the 'refs/tags/' prefix
           SLUG=${SHORT//\//_} # replace '/' with '_'
 
-          if [[ "${GITHUB_REF}" == *"test"* ]]; then
+          if [[ "${SLUG}" == *"test"* ]]; then
             for os in linux darwin windows; do
-              echo "Dry-run: Preparing ${{env.LIBNAME}}-${os} for test tag ${GITHUB_REF}" | tee -a $GITHUB_STEP_SUMMARY
-              mkdir -p ${PWD}/package-${os}
-              docker run --rm --user $(id -u) --volume ${PWD}/${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} --volume ${PWD}/package-${os}:/package registry.git.iem.at/pd/deken \
+              echo "## ${{env.LIBNAME}}-${os} ${SLUG}" | tee -a $GITHUB_STEP_SUMMARY
+              mkdir -p package-${os}
+              docker run --rm --user $(id -u) --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} --volume ./package-${os}:/package registry.git.iem.at/pd/deken \
                 deken package --output-dir /package -v "${SLUG}" /${{env.LIBNAME}}
 
-              dek_files=$(ls ${PWD}/package-${os}/*.dek)
+              dek_files=$(ls package-${os}/*.dek)
               for dek_file in $dek_files; do
-                echo "Contents of $dek_file:" | tee -a $GITHUB_STEP_SUMMARY
-                unzip -l "$dek_file" | tee -a $GITHUB_STEP_SUMMARY
+                filename=$(basename "$dek_file")
+                echo -e "#### Contents of \`$filename\`:\n\`\`\`" | tee -a $GITHUB_STEP_SUMMARY
+                unzip -l "$dek_file" | awk 'NR>3 {print $4}' | tee -a $GITHUB_STEP_SUMMARY
+                echo '```' | tee -a $GITHUB_STEP_SUMMARY
               done
             done
           else
             for os in linux darwin windows; do
-              docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+              docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
                 deken upload --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
             done
-            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ${PWD}/${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+            docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD --volume ./${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
               deken upload --name ${{env.LIBNAME}} /${{env.LIBNAME}}
           fi
