@@ -1,4 +1,4 @@
-#N canvas 903 159 852 793 10;
+#N canvas 477 165 852 793 10;
 #X obj 367 247 bang~;
 #X obj 100 467 inlet~;
 #X obj 547 332 pointer;
@@ -76,7 +76,7 @@
 #X obj 367 283 t b b;
 #X obj 367 522 rotatex, f 9;
 #X text 429 522 rotate y (order of input is y x z);
-#X obj 100 102 vsl 140 135 -1.5708 1.5708 0 0 \$0-vsl-s \$0-vsl-r x/scope3d~ 2 6 0 10 #ffffff #ffffff #000000 0 1;
+#X obj 100 102 vsl 140 135 -1.5708 1.5708 0 0 \$0-vsl-s \$0-vsl-r x/scope3d 2 6 0 10 #ffffff #ffffff #000000 0 1;
 #X obj 367 592 rotatex;
 #X obj 668 534 loadbang;
 #X msg 668 555 -0.6;
