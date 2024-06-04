@@ -8,4 +8,4 @@
 #X text 12 109 INLET_1 multichannel coordinate signal \, msg;
 #X text 12 169 OUTLET_2 multichannel derivatives signal;
 #X text 12 129 INLET_2 persistence signal;
-#X text 12 89 VERSION 0.3.4;
+#X text 12 89 VERSION 0.3.5;
