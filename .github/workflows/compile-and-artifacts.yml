@@ -140,27 +140,24 @@ jobs:
         with:
           path: artifacts
 
-      - name: Merge Artifacts for OS
+      - name: Merge Artifacts to Package
         run: |
           mkdir -p ${{env.LIBNAME}}
           cp -rn artifacts/${{env.LIBNAME}}-${{ matrix.os }}*/* ${{env.LIBNAME}}
 
-      - name: Upload Merged Artifact
+      - name: Upload Package
         uses: actions/upload-artifact@v4
         with:
           name: ${{env.LIBNAME}}-${{ matrix.os }}
           path: ${{env.LIBNAME}}
 
-      - name: Rezip artifacts for release
+      - name: Create Zip for Release
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          SHORT=${GITHUB_REF:11} # Removes 'refs/tags/v' prefix
-          SLUG=${SHORT//\//_} # Replaces '/' with '_'
-          zip -r ${{env.LIBSLUG}}-${{ matrix.os }}.zip ${{env.LIBNAME}}
+        run: zip -r ${{env.LIBSLUG}}-${{ matrix.os }}.zip ${{env.LIBNAME}}
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Add Zip to Release
         if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
           files: ${{env.LIBSLUG}}-${{ matrix.os }}.zip
 
@@ -188,39 +185,40 @@ jobs:
           name: ${{env.LIBNAME}}-linux
           path: ${{env.LIBNAME}}-linux
 
-      - name: Create Deken Package and upload
+      - name: Check Deken Package
+        shell: bash
+        run: |
+          SHORT=${GITHUB_REF:11} # remove the 'refs/tags/v' prefix
+          SLUG=${SHORT//\//_} # replace '/' with '_'
+          for os in linux darwin windows; do
+            echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
+            mkdir -p package-${os}
+            docker run --rm --user $(id -u) --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} \
+              --volume ./package-${os}:/package registry.git.iem.at/pd/deken \
+              deken package --output-dir /package -v "${SLUG}" /${{env.LIBNAME}}
+
+            dek_files=$(ls package-${os}/*.dek)
+            for dek_file in $dek_files; do
+              filename=$(basename "$dek_file")
+              echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+              unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | tee -a $GITHUB_STEP_SUMMARY
+              echo '```' | tee -a $GITHUB_STEP_SUMMARY
+            done
+          done
+
+      - name: Upload Deken Package
+        if: ${{ !contains(github.ref, 'test') }}
         shell: bash
         env:
           DEKEN_USERNAME: ${{ secrets.DEKEN_USERNAME }}
           DEKEN_PASSWORD: ${{ secrets.DEKEN_PASSWORD }}
-        run: | # FIXME: distribute to separate steps?
-          SHORT=${GITHUB_REF:11} # remove the 'refs/tags/v' prefix
-          SLUG=${SHORT//\//_} # replace '/' with '_'
-
-          if [[ "${SLUG}" == *"test"* ]]; then
-            for os in linux darwin windows; do
-              echo "## ${os}" | tee -a $GITHUB_STEP_SUMMARY
-              mkdir -p package-${os}
-              docker run --rm --user $(id -u) --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} \
-                --volume ./package-${os}:/package registry.git.iem.at/pd/deken \
-                deken package --output-dir /package -v "${SLUG}" /${{env.LIBNAME}}
-
-              dek_files=$(ls package-${os}/*.dek)
-              for dek_file in $dek_files; do
-                filename=$(basename "$dek_file")
-                echo -e "#### \`$filename\`" | tee -a $GITHUB_STEP_SUMMARY
-                echo '```' | tee -a $GITHUB_STEP_SUMMARY
-                unzip -l "$dek_file" | awk 'NR>3 {print $4}' | sed '/^$/d' | tee -a $GITHUB_STEP_SUMMARY
-                echo '```' | tee -a $GITHUB_STEP_SUMMARY
-              done
-            done
-          else
-            for os in linux darwin windows; do
-              docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
-                --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
-                deken upload --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
-            done
+        run: |
+          for os in linux darwin windows; do
             docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
-              --volume ./${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
-              deken upload --name ${{env.LIBNAME}} /${{env.LIBNAME}}
-          fi
+              --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+              deken upload --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
+          done
+          docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
+            --volume ./${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
+            deken upload --name ${{env.LIBNAME}} /${{env.LIBNAME}}
