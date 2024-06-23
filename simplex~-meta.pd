@@ -1,11 +1,5 @@
-#N canvas 65 88 415 253 10;
-#X text 12 38 NAME simplex~;
+#N canvas 153 91 415 136 10;
 #X text 12 18 AUTHOR Ben Wesch;
-#X text 12 221 LICENSE Unlicense;
-#X text 12 58 DESCRIPTION external for signal rate simplex noise sampling with 1d \, 2d \, 3d and 4d multichannel input., f 51;
-#X text 12 189 KEYWORDS deterministic noise \, gradient noise \, noise \, perlin noise \, simplex noise \, scan \, scanned synthesis \, 1d \, 2d \, 3d \, 4d, f 61;
-#X text 12 149 OUTLET_1 sampled noise signal;
-#X text 12 109 INLET_1 multichannel coordinate signal \, msg;
-#X text 12 169 OUTLET_2 multichannel derivatives signal;
-#X text 12 129 INLET_2 persistence signal;
-#X text 12 89 VERSION 0.3.5;
+#X text 12 91 LICENSE Unlicense;
+#X text 12 38 DESCRIPTION external for signal rate simplex noise sampling with 1d \, 2d \, 3d and 4d multichannel input., f 51;
+#X text 12 69 VERSION 0.3.6;
