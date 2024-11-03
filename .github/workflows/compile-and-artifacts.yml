@@ -5,6 +5,7 @@ on: [push, pull_request]
 env:
   PD_VERSION: 0.55-0
   PDINCLUDEDIR: ./pure-data/src
+  PDLIBDIR: ./build
   LIBNAME: simplex~
   LIBSLUG: simplex # for github release zip files
 
