@@ -116,7 +116,7 @@ jobs:
           if [ ${{ matrix.floatsize }} -eq 32 ]; then
             make install CC=gcc PDINCLUDEDIR="pd-${{env.PD_VERSION}}/src" PDDIR="pd-${{env.PD_VERSION}}" PDBINDIR="pd-${{env.PD_VERSION}}/bin" floatsize=${{ matrix.floatsize }} extension=m_${{ matrix.arch }}
           else
-            make install CC=gcc PDINCLUDEDIR="Pd-0.54.1/src" PDDIR="Pd-0.54.1" PDBINDIR="Pd-0.54.1/bin" floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.dll
+            make install CC=gcc PDINCLUDEDIR="Pd-0.55.0/src" PDDIR="Pd-0.55.0" PDBINDIR="Pd-0.55.0/bin" floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.dll
           fi
 
       - name: Archive artifacts
