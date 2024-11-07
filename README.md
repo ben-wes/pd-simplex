@@ -5,6 +5,8 @@ The current version's noise implementation is based on https://github.com/stegu/
 
 ![simplex~-help.pd screenshot](simplex%7E-help.pd.png)
 
+![simplex-help.pd screenshot](simplex-help.pd.png)
+
 ## Build and Installation Instructions
 To compile and install, follow these steps. Note that [Makefile.pdlibbuilder](https://github.com/pure-data/pd-lib-builder/) is included as submodule, requiring the `--recursive` parameter.
 ~~~
