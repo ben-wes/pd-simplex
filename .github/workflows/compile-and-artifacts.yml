@@ -217,8 +217,8 @@ jobs:
           for os in linux darwin windows; do
             docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
               --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
-              deken upload --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
+              deken upload -v "${SLUG}" --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
           done
           docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
             --volume ./${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
-            deken upload --name ${{env.LIBNAME}} /${{env.LIBNAME}}
+            deken upload -v "${SLUG}" --name ${{env.LIBNAME}} /${{env.LIBNAME}}
