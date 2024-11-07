@@ -33,7 +33,7 @@ void simplex_list(t_simplex *x, t_symbol *s, int ac, t_atom *av) {
     int dim = ac;
     if(dim==0) {
         if (x->derivatives) {
-            outlet_anything(x->derivatives_outlet, gensym("derivative"), x->last_dim, x->derivative_list);
+            outlet_list(x->derivatives_outlet, &s_list, x->last_dim, x->derivative_list);
         }
         outlet_float(x->x_obj.ob_outlet, x->last_value);
     	return;
@@ -57,7 +57,7 @@ void simplex_list(t_simplex *x, t_symbol *s, int ac, t_atom *av) {
         for (int i = 0; i < dim; i++) {
             SETFLOAT(&(x->derivative_list[i]), x->derivatives[i]);
         }
-        outlet_anything(x->derivatives_outlet, gensym("derivative"), dim, x->derivative_list);
+        outlet_list(x->derivatives_outlet, &s_list, dim, x->derivative_list);
     }
 
     outlet_float(x->x_obj.ob_outlet, out);
