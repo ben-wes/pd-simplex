@@ -1,5 +1,3 @@
-#N canvas 153 91 415 136 10;
+#N canvas 153 91 415 96 10;
 #X text 12 18 AUTHOR Ben Wesch;
-#X text 12 91 LICENSE Unlicense;
 #X text 12 38 DESCRIPTION external for signal rate simplex noise sampling with 1d \, 2d \, 3d and 4d multichannel input., f 51;
-#X text 12 69 VERSION 0.3.6;
