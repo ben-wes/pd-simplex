@@ -1,5 +1,5 @@
-# simplex~
-Pure Data (Pd) external for signal rate simplex noise sampling with 1d, 2d, 3d and 4d multichannel input
+# simplex
+Pure Data (Pd) externals for signal and control rate simplex noise sampling with 1d, 2d, 3d and 4d input (signal version supporting multichannel support)
 
 The current version's noise implementation is based on https://github.com/stegu/perlin-noise/blob/master/src/sdnoise1234.c by Stefan Gustavson.
 
@@ -13,7 +13,7 @@ cd pd-simplex
 make install
 ~~~
 
-## Usage
+## Usage (simplex~)
 ### Inlets and Outlets
 * **1st inlet:** expects a multichannel signal with up to 4 dimensions for the noise sampling position (the noise algorithm, and hence its performance, is determined by the number of channels)
 * **2nd inlet:** can be used to control the persistence value with a signal or float inputs
@@ -57,4 +57,4 @@ If normalization is activated (via creation argument or message), the sum of all
 
 ## History
 
-The initial code of this external was an experiment generated with ChatGPT4. The fascinating part of this was, that with a few feedback loops (feeding errors back to it), it managed to create a working Pd external. After some more research around simplex noise, the noise algorithm of the external turned out to be a pretty exact copy of [this SimplexNoise.cpp](https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp) though (including variable names and comments).
+The initial code of this external was an experiment generated with ChatGPT4. The fascinating part of this was, that with a few feedback cycles (feeding errors back to it), it managed to create a working Pd external. After some more research around simplex noise, the noise algorithm of the external turned out to be a pretty exact copy of [this SimplexNoise.cpp](https://github.com/SRombauts/SimplexNoise/blob/master/src/SimplexNoise.cpp) though (including variable names and comments). Later versions were completely revised manually though.
