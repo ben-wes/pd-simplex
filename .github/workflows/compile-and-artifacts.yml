@@ -15,19 +15,33 @@ jobs:
     strategy:
       matrix:
         os: [linux]
-        arch: [amd64, arm64]
+        arch: [amd64, arm, arm64]
         floatsize: [32, 64]
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
 
-      - name: Set up cross-compilation environment for arm64
-        if: matrix.arch == 'arm64'
+      - name: Set up cross-compilation environment for ARM
+        if: matrix.arch == 'arm' || matrix.arch == 'arm64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+            # ARM64 flags from pdlibbuilder
+            echo "ARCH_FLAGS=-mcpu=cortex-a53" >> $GITHUB_ENV
+          else
+            sudo apt-get install -y gcc-arm-linux-gnueabihf
+            echo "CC=arm-linux-gnueabihf-gcc" >> $GITHUB_ENV
+            # ARM32 (armv7) flags from pdlibbuilder
+            echo "ARCH_FLAGS=-march=armv7-a -mfpu=vfpv3 -mfloat-abi=hard" >> $GITHUB_ENV
+          fi
+
+      - name: Set architecture flags for amd64
+        if: matrix.arch == 'amd64'
+        run: |
+          echo "ARCH_FLAGS=-march=core2 -mfpmath=sse -msse -msse2 -msse3" >> $GITHUB_ENV
 
       - name: Clone Pd
         run: git clone --branch=${{ env.PD_VERSION }} --depth=1 https://github.com/pure-data/pure-data.git
@@ -36,14 +50,20 @@ jobs:
         if: matrix.arch == 'amd64'
         run: |
           if [ ${{ matrix.floatsize }} -eq 32 ]; then
-            make install floatsize=${{ matrix.floatsize }} extension=pd_${{ matrix.os }}
+            make install floatsize=${{ matrix.floatsize }} extension=pd_${{ matrix.os }} \
+              CFLAGS="${ARCH_FLAGS}"
           else
-            make install floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.so
+            make install floatsize=${{ matrix.floatsize }} \
+              extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.so \
+              CFLAGS="${ARCH_FLAGS}"
           fi
 
-      - name: Compile arm64 external
-        if: matrix.arch == 'arm64'
-        run: make install floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.so
+      - name: Compile ARM external
+        if: matrix.arch == 'arm' || matrix.arch == 'arm64'
+        run: |
+          make install floatsize=${{ matrix.floatsize }} \
+            extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.so \
+            CFLAGS="${ARCH_FLAGS}"
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v4
