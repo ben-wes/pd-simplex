@@ -228,7 +228,7 @@ jobs:
             mkdir -p package-${os}
             docker run --rm --user $(id -u) --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} \
               --volume ./package-${os}:/package registry.git.iem.at/pd/deken \
-              deken package --output-dir /package --version "${SLUG}" /${{env.LIBNAME}}
+              deken package --output-dir /package /${{env.LIBNAME}}
 
             dek_files=$(ls package-${os}/*.dek)
             for dek_file in $dek_files; do
@@ -250,8 +250,8 @@ jobs:
           for os in linux darwin windows; do
             docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
               --volume ./${{env.LIBNAME}}-${os}:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
-              deken upload --version "${SLUG}" --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
+              deken upload --name ${{env.LIBNAME}} --no-source-error /${{env.LIBNAME}}
           done
           docker run --rm -e DEKEN_USERNAME -e DEKEN_PASSWORD \
             --volume ./${{env.LIBNAME}}-src:/${{env.LIBNAME}} registry.git.iem.at/pd/deken \
-            deken upload --version "${SLUG}" --name ${{env.LIBNAME}} /${{env.LIBNAME}}
+            deken upload --name ${{env.LIBNAME}} /${{env.LIBNAME}}
