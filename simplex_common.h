@@ -10,7 +10,7 @@
 
 // Constants
 #define DEFAULT_PERSISTENCE 0.5
-#define MAX_DIMENSIONS 4
+#define MAX_DIMENSIONS 5
 #define MAX_OCTAVES 1024
 
 // Skew factors
@@ -544,6 +544,41 @@ static t_float snoise4(t_float *pos, t_float sc, t_float coeff, unsigned char *p
     return coeff * noise;
 }
 
+// 5D noise using multiple rotated 4D samples for better continuity
+static t_float snoise5(t_float *pos, t_float sc, t_float coeff, unsigned char *perm, t_float *derivatives) {
+    // Create three 4D samples with different rotations of the 5D coordinates
+    t_float pos4d_1[4] = {pos[0], pos[1], pos[2], pos[3]};
+    t_float pos4d_2[4] = {pos[1], pos[2], pos[3], pos[4]};
+    t_float pos4d_3[4] = {pos[2], pos[3], pos[4], pos[0]};
+    
+    t_float noise_1 = snoise4(pos4d_1, sc, 1.0f, perm, NULL);
+    t_float noise_2 = snoise4(pos4d_2, sc, 1.0f, perm, NULL);
+    t_float noise_3 = snoise4(pos4d_3, sc, 1.0f, perm, NULL);
+    
+    // Use the 5th dimension to weight the combination
+    t_float v = sc * pos[4];
+    t_float v_floor = fastfloor(v);
+    t_float v_frac = v - v_floor;
+    
+    // Create smooth weights that sum to 1
+    t_float w1 = 0.5f + 0.3f * cosf(v_frac * 2.0f * M_PI);
+    t_float w2 = 0.3f + 0.3f * cosf((v_frac + 0.33f) * 2.0f * M_PI);
+    t_float w3 = 1.0f - w1 - w2;
+    
+    t_float result = w1 * noise_1 + w2 * noise_2 + w3 * noise_3;
+    
+    // Simple derivatives
+    if (derivatives) {
+        derivatives[0] = 0;
+        derivatives[1] = 0;
+        derivatives[2] = 0;
+        derivatives[3] = 0;
+        derivatives[4] = 0;
+    }
+    
+    return coeff * result;
+}
+
 static inline t_float generate_noise(t_simplex_config *cfg,
 									 t_float *pos, 
                                      t_float persistence,
@@ -566,7 +601,7 @@ static inline t_float generate_noise(t_simplex_config *cfg,
     }
     
     static t_float (*noise_func[])(t_float *, t_float, t_float, unsigned char *, t_float *) = {
-        snoise1, snoise2, snoise3, snoise4
+        snoise1, snoise2, snoise3, snoise4, snoise5
     };
     
     if (derivatives) {
