@@ -203,7 +203,7 @@ void simplex_tilde_setup(void) {
         dlopen(NULL, RTLD_NOW), "signal_setmultiout");
 #endif
 
-    simplex_tilde_class = class_new(
+    simplex_tilde_class = pd_class_new(
         gensym("simplex~"),
         (t_newmethod)simplex_tilde_new,
         (t_method)simplex_tilde_free,

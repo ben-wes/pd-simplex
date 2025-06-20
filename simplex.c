@@ -145,7 +145,7 @@ static void *simplex_new(t_symbol *s, int ac, t_atom *av) {
 }
 
 void simplex_setup(void) {
-    simplex_class = class_new(
+    simplex_class = pd_class_new(
         gensym("simplex"),
         (t_newmethod)simplex_new,
         (t_method)simplex_free,
