@@ -3,7 +3,7 @@ name: Build and upload artifacts
 on: [push, pull_request]
 
 env:
-  PD_VERSION: 0.55-0
+  PD_VERSION: 0.56-0
   PDINCLUDEDIR: ./pure-data/src
   PDLIBDIR: ./build
   LIBNAME: simplex
