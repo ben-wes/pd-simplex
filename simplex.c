@@ -29,7 +29,7 @@ void simplex_list(t_simplex *x, t_symbol *s, int ac, t_atom *av) {
         .perm = x->perm
     };
     t_float out = 0.;
-    t_float pos[4] = {0};
+    t_float pos[MAX_DIMENSIONS] = {0};
     int dim = ac;
     if(dim==0) {
         if (x->derivatives) {
@@ -39,9 +39,9 @@ void simplex_list(t_simplex *x, t_symbol *s, int ac, t_atom *av) {
     	return;
     }
 
-    if(dim>4) {
-        pd_error(x, "too much data, limiting to 4 dimensions");
-        dim = 4;
+    if(dim > MAX_DIMENSIONS) {
+        pd_error(x, "too much data, limiting to %d dimensions", MAX_DIMENSIONS);
+        dim = MAX_DIMENSIONS;
     }
 
     x->last_dim = dim;

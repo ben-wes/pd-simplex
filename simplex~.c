@@ -40,7 +40,7 @@ static t_int *simplex_tilde_perform(t_int *w) {
     t_int n_samples = w[2];
     int sample, dim;
     for (sample = 0; sample < n_samples; sample++) {
-        t_float pos[4] = {0};
+        t_float pos[MAX_DIMENSIONS] = {0};
         for (dim = 0; dim < x->dimensions; dim++)
             pos[dim] = x->coordinate_vector[dim][sample];
         x->out_value[sample] = generate_noise(&cfg, pos, x->in_persistence[sample], 
