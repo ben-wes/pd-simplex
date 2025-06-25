@@ -3,7 +3,9 @@ name: Build and upload artifacts
 on: [push, pull_request]
 
 env:
-  PD_VERSION: 0.55-0
+  PD_MAJOR: 0
+  PD_MINOR: 55
+  PD_BUGFIX: 2
   PDINCLUDEDIR: ./pure-data/src
   PDLIBDIR: ./build
   LIBNAME: simplex
@@ -11,7 +13,7 @@ env:
 
 jobs:
   build_linux:
-    runs-on: ubuntu-20.04 # <-- FIXME: revert this to latest?
+    runs-on: ubuntu-22.04 # <-- FIXME: revert this to latest?
     strategy:
       matrix:
         os: [linux]
@@ -44,7 +46,7 @@ jobs:
           echo "ARCH_FLAGS=-march=core2 -mfpmath=sse -msse -msse2 -msse3" >> $GITHUB_ENV
 
       - name: Clone Pd
-        run: git clone --branch=${{ env.PD_VERSION }} --depth=1 https://github.com/pure-data/pure-data.git
+        run: git clone --branch=${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}} --depth=1 https://github.com/pure-data/pure-data.git
 
       - name: Compile amd64 external
         if: matrix.arch == 'amd64'
@@ -84,7 +86,7 @@ jobs:
           submodules: true
 
       - name: Clone Pd
-        run: git clone --branch=${{ env.PD_VERSION }} --depth=1 https://github.com/pure-data/pure-data.git
+        run: git clone --branch=${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}} --depth=1 https://github.com/pure-data/pure-data.git
       
       - name: Set up environment
         run: brew install make
@@ -119,11 +121,11 @@ jobs:
       - name: Download Pure-Data Binaries
         run: |
           if (${{ matrix.floatsize }} -eq 32) {
-            Invoke-WebRequest -Uri "http://msp.ucsd.edu/Software/pd-${{env.PD_VERSION}}.msw.zip" -OutFile "pd${{ matrix.floatsize }}-${{env.PD_VERSION}}.msw.zip"
+            Invoke-WebRequest -Uri "http://msp.ucsd.edu/Software/pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}.msw.zip" -OutFile "pd${{ matrix.floatsize }}-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}.msw.zip"
           } else {
-            Invoke-WebRequest -Uri "https://puredata.info/downloads/pure-data/releases/${{env.PD_VERSION}}-pd64/Pd64-${{env.PD_VERSION}}.msw.zip" -OutFile "pd${{ matrix.floatsize }}-${{env.PD_VERSION}}.msw.zip"
+            Invoke-WebRequest -Uri "https://puredata.info/downloads/pure-data/releases/${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}-pd64/Pd64-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}.msw.zip" -OutFile "pd${{ matrix.floatsize }}-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}.msw.zip"
           }
-          Expand-Archive -Path "pd${{ matrix.floatsize }}-${{env.PD_VERSION}}.msw.zip" -DestinationPath .
+          Expand-Archive -Path "pd${{ matrix.floatsize }}-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}.msw.zip" -DestinationPath .
 
       - name: Set up compiler environment
         run: |
@@ -134,9 +136,9 @@ jobs:
         run: |
           export PATH="/c/msys64/mingw64/bin:$PATH"  # Ensure MinGW GCC is preferred if needed
           if [ ${{ matrix.floatsize }} -eq 32 ]; then
-            make install CC=gcc PDINCLUDEDIR="pd-${{env.PD_VERSION}}/src" PDDIR="pd-${{env.PD_VERSION}}" PDBINDIR="pd-${{env.PD_VERSION}}/bin" floatsize=${{ matrix.floatsize }} extension=m_${{ matrix.arch }}
+            make install CC=gcc PDINCLUDEDIR="pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}/src" PDDIR="pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}" PDBINDIR="pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}-${{env.PD_BUGFIX}}/bin" floatsize=${{ matrix.floatsize }} extension=m_${{ matrix.arch }}
           else
-            make install CC=gcc PDINCLUDEDIR="Pd-0.55.0/src" PDDIR="Pd-0.55.0" PDBINDIR="Pd-0.55.0/bin" floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.dll
+            make install CC=gcc PDINCLUDEDIR="Pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}.${{env.PD_BUGFIX}}/src" PDDIR="Pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}.${{env.PD_BUGFIX}}" PDBINDIR="Pd-${{env.PD_MAJOR}}.${{env.PD_MINOR}}.${{env.PD_BUGFIX}}/bin" floatsize=${{ matrix.floatsize }} extension=${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.floatsize }}.dll
           fi
 
       - name: Archive artifacts
